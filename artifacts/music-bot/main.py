@@ -298,6 +298,19 @@ async def on_ready():
     auto_np_update.start()
 
 @bot.event
+async def on_message(message: discord.Message):
+    if message.author.bot:
+        return
+    # Normalize smart/curly apostrophes & quotes so the parser never chokes on them
+    message.content = (
+        message.content
+        .replace('\u2018', "'").replace('\u2019', "'")   # '' → '
+        .replace('\u201c', '"').replace('\u201d', '"')   # "" → "
+        .replace('\u2032', "'")                          # ′ → '
+    )
+    await bot.process_commands(message)
+
+@bot.event
 async def on_guild_join(guild: discord.Guild):
     pm = PlayerManager(bot, CONFIG, guild.id)
     pm.setup_lavalink()
@@ -645,6 +658,11 @@ async def filters_cmd(ctx):
 
 @bot.command(name="tts")
 async def tts_cmd(ctx, *, text: str = None):
+    # Fall back to raw message content in case argument parsing failed on apostrophes
+    if not text:
+        raw = ctx.message.content
+        parts = raw.split(None, 1)
+        text = parts[1] if len(parts) > 1 else None
     if not text:
         return await ctx.send(embed=discord.Embed(description="❌ Usage: `!tts <text>`", color=ERROR))
     channel = await ensure_voice(ctx)
@@ -711,7 +729,23 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(embed=discord.Embed(description=f"❌ Missing argument. Type `!help` for usage.", color=ERROR))
     elif isinstance(error, commands.BadArgument):
-        await ctx.send(embed=discord.Embed(description=f"❌ Invalid argument.", color=ERROR))
+        await ctx.send(embed=discord.Embed(description=f"❌ Invalid argument. Type `!help` for usage.", color=ERROR))
+    elif isinstance(error, (commands.UnexpectedQuoteError, commands.InvalidEndOfQuotedStringError, commands.ExpectedClosingQuoteError)):
+        # Re-invoke the command treating the raw content as a plain string (ignores quote parsing)
+        raw = ctx.message.content
+        prefix_len = len(ctx.prefix or PREFIX)
+        cmd_name = ctx.invoked_with or ""
+        raw_args = raw[prefix_len + len(cmd_name):].strip()
+        if ctx.command and raw_args:
+            try:
+                await ctx.command.callback(ctx, **{ctx.command.clean_params and list(ctx.command.clean_params.keys())[0] or "text": raw_args})
+                return
+            except Exception:
+                pass
+        await ctx.send(embed=discord.Embed(
+            description=f"❌ Your message has special characters (like `'` or `\"`) that caused an error. Try rephrasing without them.",
+            color=ERROR
+        ))
     else:
         logger.error(f"Command error in {ctx.command}: {error}")
         await ctx.send(embed=discord.Embed(description=f"❌ An error occurred: `{error}`", color=ERROR))
