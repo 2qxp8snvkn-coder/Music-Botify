@@ -752,6 +752,9 @@ async def on_command_error(ctx, error):
 
 # ─── Keep-Alive & Main ────────────────────────────────────────────────────────
 
+TTS_SERVE_DIR = "/tmp/cyborg_tts"
+os.makedirs(TTS_SERVE_DIR, exist_ok=True)
+
 async def keep_alive_server():
     from aiohttp import web
 
@@ -768,9 +771,17 @@ async def keep_alive_server():
             status=200
         )
 
+    async def serve_tts(request):
+        filename = request.match_info.get("filename", "")
+        filepath = os.path.join(TTS_SERVE_DIR, filename)
+        if not os.path.isfile(filepath) or not filename.endswith(".mp3"):
+            return web.Response(status=404, text="Not found")
+        return web.FileResponse(filepath, headers={"Content-Type": "audio/mpeg"})
+
     app = web.Application()
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
+    app.router.add_get("/tts/{filename}", serve_tts)
 
     port = int(os.environ.get("PORT", 8000))
     runner = web.AppRunner(app)
