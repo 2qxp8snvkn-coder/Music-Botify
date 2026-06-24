@@ -100,6 +100,7 @@ class PlayerManager:
                 password=node["auth"],
                 region="us",
                 name=node["name"],
+                ssl=node.get("secure", False),
             )
         self.client.lavalink.add_event_hooks(self)
 
