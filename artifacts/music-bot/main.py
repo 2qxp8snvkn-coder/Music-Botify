@@ -333,6 +333,31 @@ async def on_command_error(ctx, error):
         await ctx.send(f"❌ Error: {error}")
 
 
+async def keep_alive_server():
+    from aiohttp import web
+
+    async def health(request):
+        return web.Response(text="🎵 CYBORG Music Bot is alive!", status=200)
+
+    app = web.Application()
+    app.router.add_get("/", health)
+    app.router.add_get("/health", health)
+
+    port = int(os.environ.get("PORT", 8000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.success(f"Keep-alive server running on port {port}")
+
+
+async def run_bot(token):
+    await asyncio.gather(
+        keep_alive_server(),
+        bot.start(token),
+    )
+
+
 def main():
     import warnings
     import logging as _logging
@@ -348,7 +373,7 @@ def main():
     logger.info("Starting CYBORG Music Bot...")
     logger.separator()
 
-    bot.run(token)
+    asyncio.run(run_bot(token))
 
 
 if __name__ == "__main__":
