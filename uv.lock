@@ -311,6 +311,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3a/7c/4b9eaf1f85caa5ff93caa948ee47a2fc5be2d2bbd4b60d3f989da84c8140/discord-protos-0.0.2.tar.gz", hash = "sha256:23953a05f32beedb40b708ec4b457530a6196a49c8d75d337ae9282a2a41c997", size = 13394, upload-time = "2023-03-16T01:32:14.287Z" }
 
 [[package]]
+name = "discord-py"
+version = "2.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/57/9a2d9abdabdc9db8ef28ce0cf4129669e1c8717ba28d607b5ba357c4de3b/discord_py-2.7.1.tar.gz", hash = "sha256:24d5e6a45535152e4b98148a9dd6b550d25dc2c9fb41b6d670319411641249da", size = 1106326, upload-time = "2026-03-03T18:40:46.24Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/a7/17208c3b3f92319e7fad259f1c6d5a5baf8fd0654c54846ced329f83c3eb/discord_py-2.7.1-py3-none-any.whl", hash = "sha256:849dca2c63b171146f3a7f3f8acc04248098e9e6203412ce3cf2745f284f7439", size = 1227550, upload-time = "2026-03-03T18:40:44.492Z" },
+]
+
+[[package]]
 name = "discord-py-self"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -711,6 +724,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "colorama" },
+    { name = "discord-py" },
     { name = "discord-py-self" },
     { name = "edge-tts" },
     { name = "lavalink" },
@@ -721,6 +735,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "colorama", specifier = ">=0.4.6" },
+    { name = "discord-py", specifier = ">=2.7.1" },
     { name = "discord-py-self", specifier = ">=2.1.0" },
     { name = "edge-tts", specifier = ">=7.2.8" },
     { name = "lavalink", specifier = ">=5.11.0" },

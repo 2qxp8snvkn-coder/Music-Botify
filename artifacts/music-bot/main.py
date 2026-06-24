@@ -2,12 +2,10 @@ import os
 import sys
 import json
 import asyncio
-import ctypes
 import discord
+from discord.ext import commands
 from core.player import PlayerManager
-from core.cli import CLI
 from core.logger import logger
-from core.utils import truncate_token
 from core.filters import list_filters
 
 
@@ -32,408 +30,325 @@ def load_config():
 CONFIG = load_config()
 PREFIX = "!"
 
+intents = discord.Intents.default()
+intents.message_content = True
+intents.voice_states = True
 
-def set_title(text):
-    if os.name == "nt":
-        ctypes.windll.kernel32.SetConsoleTitleW(text)
-    else:
-        print(f"\033]0;{text}\007", end="", flush=True)
-
-
-def load_tokens():
-    try:
-        with open("tokens.txt", "r") as f:
-            tokens = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        logger.error("tokens.txt not found.")
-        sys.exit(1)
-    if not tokens:
-        logger.error("No tokens found in tokens.txt.")
-        sys.exit(1)
-    return tokens
+bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
+pm_map = {}
 
 
-def remove_invalid_token(token):
-    try:
-        with open("tokens.txt", "r") as f:
-            lines = f.readlines()
-        with open("tokens.txt", "w") as f:
-            for line in lines:
-                if line.strip() != token:
-                    f.write(line)
-        logger.warning(f"Removed invalid token ...{truncate_token(token)} from tokens.txt")
-    except Exception as e:
-        logger.error(f"Failed to remove token: {e}")
+def get_pm(guild_id):
+    return pm_map.get(guild_id)
 
 
-clients = []
-player_managers = []
-ready_count = 0
-total_clients = 0
-cli_started = False
-cli_task = None
-
-HELP_MSG = """**🎵 CYBORG Music Commands**
-
-**Music**
-`!use <guild_id> <vc_id>` — set server & voice channel
-`!join` — join voice channel
-`!play <song/url>` — play music
-`!skip` — skip track
-`!stop` — stop & clear queue
-`!dc` — disconnect
-`!np` — now playing
-`!queue` — show queue
-`!volume [1-1000]` — get/set volume
-`!pause` — pause/resume
-
-**Queue**
-`!shuffle` — shuffle queue
-`!loop <track/queue/off>` — loop mode
-`!clear` — clear queue
-`!replay` — replay current track
-
-**Filters**
-`!filter <name>` — apply filter
-`!filter clear` — remove filters
-`!filters` — list all filters
-
-**Sources** (use with !play)
-`sp ` Spotify · `yt ` YouTube · `sc ` SoundCloud
-`js ` JioSaavn · `am ` Apple Music · `dz ` Deezer
-Example: `!play sp shape of you`
-
-`!help` — show this message"""
-
-
-async def handle_message_command(message, pm):
-    content = message.content.strip()
-    if not content.startswith(PREFIX):
-        return
-    parts = content[len(PREFIX):].split()
-    if not parts:
-        return
-    cmd = parts[0].lower()
-    args = parts[1:]
-
-    async def reply(text):
-        try:
-            await message.channel.send(text)
-        except Exception:
-            pass
-
-    gid = pm.context_guild
-    vid = pm.context_voice
-
-    if cmd == "help":
-        await reply(HELP_MSG)
-
-    elif cmd == "use":
-        if len(args) < 1:
-            return await reply("❌ Usage: `!use <guild_id> <voice_channel_id>`")
-        try:
-            guild_id = int(args[0])
-            voice_id = int(args[1]) if len(args) > 1 else None
-            pm.set_context(guild_id, voice_id)
-            guild = pm.client.get_guild(guild_id)
-            g_name = guild.name if guild else str(guild_id)
-            ch_name = ""
-            if voice_id and guild:
-                ch = guild.get_channel(voice_id)
-                ch_name = f" → #{ch.name}" if ch else f" → {voice_id}"
-            await reply(f"✅ Context set: **{g_name}**{ch_name}")
-        except ValueError:
-            await reply("❌ IDs must be numbers.")
-
-    elif cmd == "join":
-        if not gid or not vid:
-            return await reply("❌ Set context first: `!use <guild_id> <vc_id>`")
-        await pm.join(gid, vid)
-        await reply("✅ Joined voice channel!")
-
-    elif cmd == "play":
-        if not args:
-            return await reply("❌ Usage: `!play <song or url>`")
-        if not gid or not vid:
-            return await reply("❌ Set context first: `!use <guild_id> <vc_id>`")
-        query = " ".join(args)
-        await reply(f"🔍 Searching: **{query}**...")
-        await pm.play(gid, vid, query, auto_play=True)
-
-    elif cmd == "skip":
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.skip(gid)
-        await reply("⏭ Skipped!")
-
-    elif cmd == "stop":
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.stop(gid)
-        await reply("⏹ Stopped and cleared queue.")
-
-    elif cmd in ("dc", "disconnect", "leave"):
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.disconnect(gid)
-        await reply("👋 Disconnected.")
-
-    elif cmd in ("np", "nowplaying"):
-        if not gid:
-            return await reply("❌ No context set.")
-        player = pm.client.lavalink.player_manager.get(gid)
-        if not player or not player.current:
-            return await reply("❌ Nothing is playing.")
-        from core.utils import format_time, create_progress_bar
-        t = player.current
-        pos = player.position
-        dur = t.duration
-        mins_pos, secs_pos = divmod(int(pos / 1000), 60)
-        mins_dur, secs_dur = divmod(int(dur / 1000), 60)
-        bar_fill = int((pos / dur) * 20) if dur > 0 else 0
-        bar = "▓" * bar_fill + "░" * (20 - bar_fill)
-        state = "⏸ Paused" if player.paused else "▶ Playing"
-        filt = pm.active_filter.get(gid, "none")
-        await reply(
-            f"**{t.title}**\n{t.author}\n"
-            f"`{bar}` {mins_pos:02d}:{secs_pos:02d}/{mins_dur:02d}:{secs_dur:02d}\n"
-            f"{state} · Vol: {player.volume} · Filter: {filt}"
-        )
-
-    elif cmd in ("queue", "q"):
-        if not gid:
-            return await reply("❌ No context set.")
-        player = pm.client.lavalink.player_manager.get(gid)
-        if not player:
-            return await reply("❌ Nothing is playing.")
-        from core.utils import format_time
-        lines = []
-        if player.current:
-            lines.append(f"▶ **{player.current.title}**")
-        if player.queue:
-            for i, t in enumerate(player.queue[:10]):
-                mins, secs = divmod(int(t.duration / 1000), 60)
-                lines.append(f"`{i+1}.` {t.title} [{mins:02d}:{secs:02d}]")
-            if len(player.queue) > 10:
-                lines.append(f"_...and {len(player.queue)-10} more_")
-        else:
-            lines.append("Queue is empty.")
-        await reply("\n".join(lines))
-
-    elif cmd in ("volume", "vol"):
-        if not gid:
-            return await reply("❌ No context set.")
-        if args:
-            try:
-                vol = int(args[0])
-                await pm.set_volume(gid, vol)
-                await reply(f"🔊 Volume set to **{vol}**")
-            except ValueError:
-                await reply("❌ Volume must be a number (1-1000).")
-        else:
-            player = pm.client.lavalink.player_manager.get(gid)
-            vol = player.volume if player else "?"
-            await reply(f"🔊 Current volume: **{vol}**")
-
-    elif cmd == "pause":
-        if not gid:
-            return await reply("❌ No context set.")
-        player = pm.client.lavalink.player_manager.get(gid)
-        if not player:
-            return await reply("❌ Nothing is playing.")
-        await pm.pause(gid)
-        state = "⏸ Paused" if player.paused else "▶ Resumed"
-        await reply(state)
-
-    elif cmd == "shuffle":
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.shuffle(gid)
-        await reply("🔀 Queue shuffled!")
-
-    elif cmd == "loop":
-        if not args:
-            return await reply("❌ Usage: `!loop <track/queue/off>`")
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.loop(gid, args[0])
-        await reply(f"🔁 Loop: **{args[0]}**")
-
-    elif cmd == "clear":
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.clear_queue(gid)
-        await reply("🗑 Queue cleared.")
-
-    elif cmd == "replay":
-        if not gid:
-            return await reply("❌ No context set.")
-        await pm.replay(gid)
-        await reply("🔄 Current track pushed to queue #1.")
-
-    elif cmd == "filter":
-        if not gid:
-            return await reply("❌ No context set.")
-        if not args:
-            return await reply("❌ Usage: `!filter <name>` or `!filter clear`")
-        fname = args[0].lower()
-        await pm.apply_filter_cmd(gid, fname)
-        if fname == "clear":
-            await reply("✅ Filters cleared.")
-        else:
-            await reply(f"✅ Filter applied: **{fname}**")
-
-    elif cmd == "filters":
-        filters = list_filters()
-        await reply("**Available filters:**\n`" + "` · `".join(filters) + "`")
-
-    elif cmd == "tts":
-        if not args:
-            return await reply("❌ Usage: `!tts <text>`")
-        if not gid or not vid:
-            return await reply("❌ Set context first: `!use <guild_id> <vc_id>`")
-        text = " ".join(args)
-        await pm.tts.speak(gid, vid, text)
-        await reply(f"🗣 Speaking: _{text}_")
-
-    else:
-        await reply(f"❓ Unknown command `!{cmd}`. Type `!help` for all commands.")
-
-
-async def start_cli():
-    global cli_started, cli_task
-    if cli_started:
-        return
-    cli_started = True
-    set_title(f"CYBORG Music | {len(clients)} bot(s)")
-    cli = CLI(player_managers, clients)
-    cli_task = asyncio.ensure_future(cli.start())
-
-
-async def run_client(token, index):
-    global ready_count, total_clients
-    client = discord.Client()
-    pm = PlayerManager(client, CONFIG)
-
-    @client.event
-    async def on_ready():
-        global ready_count
-        logger.success(f"Bot #{index + 1} logged in as {client.user}", token=f"...{truncate_token(token)}")
-        logger.info(f"Control via Discord messages with prefix '{PREFIX}' (e.g. {PREFIX}help)")
+@bot.event
+async def on_ready():
+    logger.success(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    logger.info(f"Serving {len(bot.guilds)} server(s)")
+    logger.info(f"Use {PREFIX}help to see all commands")
+    for guild in bot.guilds:
+        pm = PlayerManager(bot, CONFIG, guild.id)
         pm.setup_lavalink()
-        clients.append(client)
-        player_managers.append(pm)
-        ready_count += 1
-        if ready_count >= total_clients:
-            await start_cli()
+        pm_map[guild.id] = pm
+    await bot.change_presence(activity=discord.Activity(
+        type=discord.ActivityType.listening, name=f"{PREFIX}play | Music Bot"
+    ))
 
-    @client.event
-    async def on_message(message):
-        if message.author.id != client.user.id:
-            return
-        if not message.content.startswith(PREFIX):
-            return
-        try:
-            await handle_message_command(message, pm)
-        except Exception as e:
-            logger.error(f"Message command error: {e}")
-            try:
-                await message.channel.send(f"❌ Error: {e}")
-            except Exception:
-                pass
 
-    try:
-        await client.start(token)
-    except discord.errors.LoginFailure:
-        logger.error(f"Bot #{index + 1} failed to login: Invalid token")
-        remove_invalid_token(token)
-        await client.close()
-        total_clients = max(total_clients - 1, 0)
-        if ready_count >= total_clients and total_clients > 0:
-            await start_cli()
-        elif total_clients == 0:
-            logger.error("All tokens failed. Exiting.")
-    except Exception as e:
-        logger.error(f"Bot #{index + 1} encountered an error: {e}")
-        await client.close()
-        total_clients = max(total_clients - 1, 0)
-        if ready_count >= total_clients and total_clients > 0:
-            await start_cli()
-        elif total_clients == 0:
-            logger.error("All tokens failed. Exiting.")
+@bot.event
+async def on_guild_join(guild):
+    pm = PlayerManager(bot, CONFIG, guild.id)
+    pm.setup_lavalink()
+    pm_map[guild.id] = pm
+    logger.info(f"Joined new guild: {guild.name}")
+
+
+async def ensure_voice(ctx):
+    if not ctx.author.voice or not ctx.author.voice.channel:
+        await ctx.send("❌ You need to be in a voice channel first!")
+        return None
+    return ctx.author.voice.channel
+
+
+@bot.command(name="help")
+async def help_cmd(ctx):
+    embed = discord.Embed(title="🎵 CYBORG Music Bot", color=0x7289DA)
+    embed.add_field(name="Music", value=(
+        "`!play <song>` — play a song\n"
+        "`!skip` — skip track\n"
+        "`!stop` — stop & clear queue\n"
+        "`!dc` — disconnect\n"
+        "`!np` — now playing\n"
+        "`!queue` — show queue\n"
+        "`!volume [1-1000]` — set volume\n"
+        "`!pause` — pause/resume\n"
+        "`!seek <seconds>` — seek"
+    ), inline=False)
+    embed.add_field(name="Queue", value=(
+        "`!shuffle` — shuffle\n"
+        "`!loop <track/queue/off>` — loop\n"
+        "`!clear` — clear queue\n"
+        "`!replay` — replay current"
+    ), inline=False)
+    embed.add_field(name="Filters", value=(
+        "`!filter <name>` — apply filter\n"
+        "`!filter clear` — remove filters\n"
+        "`!filters` — list all filters"
+    ), inline=False)
+    embed.add_field(name="Sources (use with !play)", value=(
+        "`sp ` Spotify · `yt ` YouTube · `sc ` SoundCloud\n"
+        "`js ` JioSaavn · `am ` Apple Music · `dz ` Deezer\n"
+        "Example: `!play sp blinding lights`"
+    ), inline=False)
+    embed.add_field(name="TTS", value=(
+        "`!tts <text>` — speak in voice channel\n"
+        "`!ttsvoice <swara/madhur>` — change voice"
+    ), inline=False)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="play", aliases=["p"])
+async def play_cmd(ctx, *, query: str = None):
+    if not query:
+        return await ctx.send("❌ Usage: `!play <song or URL>`")
+    channel = await ensure_voice(ctx)
+    if not channel:
+        return
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return await ctx.send("❌ Bot not ready. Try again in a moment.")
+    msg = await ctx.send(f"🔍 Searching: **{query}**...")
+    await pm.play(ctx.guild.id, channel.id, query, auto_play=True, response_msg=msg, ctx=ctx)
+
+
+@bot.command(name="skip", aliases=["s"])
+async def skip_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.skip(ctx.guild.id)
+    await ctx.send("⏭ Skipped!")
+
+
+@bot.command(name="stop")
+async def stop_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.stop(ctx.guild.id)
+    await ctx.send("⏹ Stopped and cleared queue.")
+
+
+@bot.command(name="dc", aliases=["disconnect", "leave"])
+async def dc_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.disconnect(ctx.guild.id)
+    await ctx.send("👋 Disconnected.")
+
+
+@bot.command(name="np", aliases=["nowplaying"])
+async def np_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    player = bot.lavalink.player_manager.get(ctx.guild.id)
+    if not player or not player.current:
+        return await ctx.send("❌ Nothing is playing.")
+    t = player.current
+    pos = player.position
+    dur = t.duration
+    mins_pos, secs_pos = divmod(int(pos / 1000), 60)
+    mins_dur, secs_dur = divmod(int(dur / 1000), 60)
+    bar_fill = int((pos / dur) * 20) if dur > 0 else 0
+    bar = "▓" * bar_fill + "░" * (20 - bar_fill)
+    state = "⏸ Paused" if player.paused else "▶ Playing"
+    filt = pm.active_filter.get(ctx.guild.id, "none")
+    loop_modes = {player.LOOP_NONE: "off", player.LOOP_SINGLE: "track", player.LOOP_QUEUE: "queue"}
+    loop = loop_modes.get(player.loop, "off")
+    embed = discord.Embed(title=t.title, color=0x1DB954)
+    embed.add_field(name=state, value=f"`{bar}`\n{mins_pos:02d}:{secs_pos:02d} / {mins_dur:02d}:{mins_dur:02d}", inline=False)
+    embed.set_footer(text=f"Vol: {player.volume} · Loop: {loop} · Filter: {filt} · by {t.author}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="queue", aliases=["q"])
+async def queue_cmd(ctx):
+    player = bot.lavalink.player_manager.get(ctx.guild.id)
+    if not player:
+        return await ctx.send("❌ Nothing is playing.")
+    embed = discord.Embed(title="📋 Queue", color=0x7289DA)
+    if player.current:
+        mins, secs = divmod(int(player.current.duration / 1000), 60)
+        embed.add_field(name="▶ Now Playing", value=f"**{player.current.title}** [{mins:02d}:{secs:02d}]", inline=False)
+    if player.queue:
+        tracks = []
+        for i, t in enumerate(player.queue[:10]):
+            mins, secs = divmod(int(t.duration / 1000), 60)
+            tracks.append(f"`{i+1}.` {t.title} [{mins:02d}:{secs:02d}]")
+        if len(player.queue) > 10:
+            tracks.append(f"*...and {len(player.queue)-10} more*")
+        embed.add_field(name="Up Next", value="\n".join(tracks), inline=False)
+    else:
+        embed.add_field(name="Up Next", value="Queue is empty", inline=False)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="volume", aliases=["vol"])
+async def volume_cmd(ctx, vol: int = None):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    player = bot.lavalink.player_manager.get(ctx.guild.id)
+    if vol is None:
+        v = player.volume if player else "?"
+        return await ctx.send(f"🔊 Current volume: **{v}**")
+    if vol < 1 or vol > 1000:
+        return await ctx.send("❌ Volume must be between 1 and 1000.")
+    await pm.set_volume(ctx.guild.id, vol)
+    await ctx.send(f"🔊 Volume set to **{vol}**")
+
+
+@bot.command(name="pause")
+async def pause_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    player = bot.lavalink.player_manager.get(ctx.guild.id)
+    if not player:
+        return await ctx.send("❌ Nothing is playing.")
+    await pm.pause(ctx.guild.id)
+    await ctx.send("⏸ Paused" if player.paused else "▶ Resumed")
+
+
+@bot.command(name="seek")
+async def seek_cmd(ctx, seconds: int = None):
+    if seconds is None:
+        return await ctx.send("❌ Usage: `!seek <seconds>`")
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.seek(ctx.guild.id, seconds)
+    mins, secs = divmod(seconds, 60)
+    await ctx.send(f"⏩ Seeked to **{mins:02d}:{secs:02d}**")
+
+
+@bot.command(name="shuffle")
+async def shuffle_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.shuffle(ctx.guild.id)
+    await ctx.send("🔀 Queue shuffled!")
+
+
+@bot.command(name="loop")
+async def loop_cmd(ctx, mode: str = None):
+    if not mode:
+        return await ctx.send("❌ Usage: `!loop <track/queue/off>`")
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.loop(ctx.guild.id, mode)
+    await ctx.send(f"🔁 Loop set to: **{mode}**")
+
+
+@bot.command(name="clear")
+async def clear_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.clear_queue(ctx.guild.id)
+    await ctx.send("🗑 Queue cleared.")
+
+
+@bot.command(name="replay")
+async def replay_cmd(ctx):
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.replay(ctx.guild.id)
+    await ctx.send("🔄 Current track pushed to queue #1.")
+
+
+@bot.command(name="filter")
+async def filter_cmd(ctx, *, name: str = None):
+    if not name:
+        return await ctx.send("❌ Usage: `!filter <name>` or `!filter clear`")
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.apply_filter_cmd(ctx.guild.id, name.lower())
+    if name.lower() == "clear":
+        await ctx.send("✅ All filters cleared.")
+    else:
+        await ctx.send(f"✅ Filter applied: **{name}**")
+
+
+@bot.command(name="filters")
+async def filters_cmd(ctx):
+    f_list = list_filters()
+    embed = discord.Embed(title="🎛 Available Filters", color=0x7289DA)
+    embed.description = " · ".join([f"`{f}`" for f in f_list])
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="tts")
+async def tts_cmd(ctx, *, text: str = None):
+    if not text:
+        return await ctx.send("❌ Usage: `!tts <text>`")
+    channel = await ensure_voice(ctx)
+    if not channel:
+        return
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    await pm.tts.speak(ctx.guild.id, channel.id, text)
+    await ctx.send(f"🗣 Speaking: _{text[:80]}_")
+
+
+@bot.command(name="ttsvoice")
+async def ttsvoice_cmd(ctx, voice: str = None):
+    if not voice:
+        return await ctx.send("❌ Usage: `!ttsvoice <swara/madhur>`")
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    if pm.tts.set_voice(ctx.guild.id, voice.lower()):
+        await ctx.send(f"✅ TTS voice set to: **{voice.capitalize()}**")
+    else:
+        await ctx.send("❌ Unknown voice. Available: `swara`, `madhur`")
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"❌ Missing argument. Type `!help` for usage.")
+    else:
+        logger.error(f"Command error: {error}")
+        await ctx.send(f"❌ Error: {error}")
 
 
 def main():
-    global total_clients
     import warnings
     import logging as _logging
-    warnings.filterwarnings("ignore", message=".*Event loop is closed.*")
-    warnings.filterwarnings("ignore", message=".*sys.meta_path.*")
+    warnings.filterwarnings("ignore")
     _logging.getLogger("asyncio").setLevel(_logging.CRITICAL)
 
-    os.system("")
-    set_title("CYBORG Music Selfbot")
-
-    tokens = load_tokens()
-    total_clients = len(tokens)
+    token = os.environ.get("DISCORD_BOT_TOKEN")
+    if not token:
+        logger.error("DISCORD_BOT_TOKEN environment variable not set.")
+        sys.exit(1)
 
     logger.separator()
-    logger.info(f"Found {len(tokens)} token(s)")
-    for i, t in enumerate(tokens):
-        logger.info(f"  Bot #{i + 1}: ...{truncate_token(t)}")
+    logger.info("Starting CYBORG Music Bot...")
     logger.separator()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    tasks = [run_client(t, i) for i, t in enumerate(tokens)]
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-    except (KeyboardInterrupt, SystemExit):
-        logger.warning("Shutting down...")
-    finally:
-        async def _cleanup():
-            for pm in player_managers:
-                try:
-                    await pm.close()
-                except Exception:
-                    pass
-            for c in clients:
-                if hasattr(c, "lavalink"):
-                    try:
-                        await c.lavalink.close()
-                    except Exception:
-                        pass
-                try:
-                    await c.close()
-                except Exception:
-                    pass
-            await asyncio.sleep(0.5)
-        try:
-            loop.run_until_complete(_cleanup())
-        except Exception:
-            pass
-        pending = asyncio.all_tasks(loop=loop)
-        for task in pending:
-            task.cancel()
-        if pending:
-            try:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            except Exception:
-                pass
-        try:
-            if hasattr(loop, 'shutdown_asyncgens'):
-                loop.run_until_complete(loop.shutdown_asyncgens())
-        except Exception:
-            pass
-        try:
-            loop.run_until_complete(asyncio.sleep(0.25))
-        except Exception:
-            pass
-        try:
-            loop.close()
-        except Exception:
-            pass
-        os._exit(0)
+    bot.run(token)
 
 
 if __name__ == "__main__":

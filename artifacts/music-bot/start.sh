@@ -1,10 +1,6 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-if [ -n "$DISCORD_TOKEN" ]; then
-  echo "$DISCORD_TOKEN" > tokens.txt
-fi
-
-pip install -q -r requirements.txt
+export DISCORD_BOT_TOKEN="${DISCORD_BOT_TOKEN}"
 
 python main.py
