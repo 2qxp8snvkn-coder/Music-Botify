@@ -2,6 +2,7 @@ import re
 import random
 import asyncio
 import aiohttp
+import discord
 import lavalink
 from lavalink.server import LoadType
 from core.voice import LavalinkVoiceClient
@@ -245,27 +246,66 @@ class PlayerManager:
 
         await self._handle_results(player, results, query, source_label, auto_play, response_msg)
 
+    @staticmethod
+    def _track_thumbnail(track) -> str | None:
+        artwork = getattr(track, 'artwork_url', None)
+        if artwork:
+            return artwork
+        ident = getattr(track, 'identifier', None)
+        if ident and len(ident) == 11:
+            return f"https://img.youtube.com/vi/{ident}/maxresdefault.jpg"
+        return None
+
     async def _handle_results(self, player, results, query, source_label, auto_play=True, response_msg=None):
+        MUSIC_GREEN = 0x1DB954
+        QUEUE_BLUE  = 0x5865F2
+
         if results.load_type == LoadType.PLAYLIST:
             tracks = results.tracks
             for track in tracks:
                 player.add(track=track)
-            msg = f"📋 Added playlist: **{results.playlist_info.name}** ({len(tracks)} tracks) — {source_label}"
-            logger.success(msg)
+            logger.success(f"Added playlist: {results.playlist_info.name} ({len(tracks)} tracks)")
             if response_msg:
-                await response_msg.edit(content=msg)
+                embed = discord.Embed(
+                    title=results.playlist_info.name,
+                    description=f"📋 Added **{len(tracks)} tracks** from playlist",
+                    color=QUEUE_BLUE
+                )
+                embed.set_footer(text=f"Source: {source_label}")
+                thumb = self._track_thumbnail(tracks[0]) if tracks else None
+                if thumb:
+                    embed.set_thumbnail(url=thumb)
+                await response_msg.edit(content=None, embed=embed)
         else:
             track = results.tracks[0]
             player.add(track=track)
             mins, secs = divmod(int(track.duration / 1000), 60)
+            duration_str = f"{mins:02d}:{secs:02d}"
             queue_pos = len(player.queue)
-            if player.is_playing:
-                msg = f"✅ Added to queue **#{queue_pos}**: **{track.title}** [{mins:02d}:{secs:02d}] — {source_label}"
-            else:
-                msg = f"▶ Now playing: **{track.title}** [{mins:02d}:{secs:02d}] — {source_label}"
+            thumb = self._track_thumbnail(track)
             logger.success(f"Queued: {track.title}")
+
+            if player.is_playing:
+                embed = discord.Embed(
+                    title=track.title[:256],
+                    color=QUEUE_BLUE
+                )
+                embed.set_author(name=f"✅  Added to Queue  •  #{queue_pos}")
+                embed.description = f"**{track.author}**\n⏱ `{duration_str}`  •  {source_label}"
+                if thumb:
+                    embed.set_thumbnail(url=thumb)
+            else:
+                embed = discord.Embed(
+                    title=track.title[:256],
+                    color=MUSIC_GREEN
+                )
+                embed.set_author(name="▶  Now Playing")
+                embed.description = f"**{track.author}**\n⏱ `{duration_str}`  •  {source_label}"
+                if thumb:
+                    embed.set_image(url=thumb)
+
             if response_msg:
-                await response_msg.edit(content=msg)
+                await response_msg.edit(content=None, embed=embed)
 
         if auto_play and not player.is_playing:
             await player.play()
