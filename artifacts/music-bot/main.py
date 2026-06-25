@@ -105,6 +105,117 @@ async def start_leave_countdown(guild_id: int):
 
 # ─── Music Control Buttons ────────────────────────────────────────────────────
 
+# ─── Likes Manager ────────────────────────────────────────────────────────────
+
+import time as _time
+
+LIKES_PATH = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data", "likes.json")
+os.makedirs(os.path.dirname(LIKES_PATH), exist_ok=True)
+
+class LikesManager:
+    def __init__(self):
+        self._data: dict[str, list] = {}
+        self._load()
+
+    def _load(self):
+        try:
+            with open(LIKES_PATH, "r") as f:
+                self._data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self._data = {}
+
+    def _save(self):
+        with open(LIKES_PATH, "w") as f:
+            json.dump(self._data, f, indent=2)
+
+    def _key(self, user_id: int) -> str:
+        return str(user_id)
+
+    def get(self, user_id: int) -> list:
+        return self._data.get(self._key(user_id), [])
+
+    def is_liked(self, user_id: int, uri: str) -> bool:
+        return any(s.get("uri") == uri for s in self.get(user_id))
+
+    def like(self, user_id: int, track) -> bool:
+        uri = getattr(track, "uri", None) or track.title
+        if self.is_liked(user_id, uri):
+            return False
+        songs = self.get(user_id)
+        songs.append({
+            "title":  track.title,
+            "author": track.author,
+            "uri":    uri,
+            "thumb":  get_thumbnail(track),
+            "added":  int(_time.time()),
+        })
+        self._data[self._key(user_id)] = songs
+        self._save()
+        return True
+
+    def unlike(self, user_id: int, index: int) -> dict | None:
+        songs = self.get(user_id)
+        if index < 1 or index > len(songs):
+            return None
+        removed = songs.pop(index - 1)
+        self._data[self._key(user_id)] = songs
+        self._save()
+        return removed
+
+    def clear(self, user_id: int):
+        self._data[self._key(user_id)] = []
+        self._save()
+
+likes_mgr = LikesManager()
+
+# ─── Liked Songs View (paginated list) ────────────────────────────────────────
+
+LIKED_PAGE_SIZE = 10
+
+class LikedView(discord.ui.View):
+    def __init__(self, songs: list, user: discord.User | discord.Member):
+        super().__init__(timeout=120)
+        self.songs  = songs
+        self.user   = user
+        self.page   = 0
+        self.pages  = max(1, (len(songs) + LIKED_PAGE_SIZE - 1) // LIKED_PAGE_SIZE)
+        self._sync()
+
+    def _sync(self):
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page >= self.pages - 1
+
+    def build_embed(self) -> discord.Embed:
+        start = self.page * LIKED_PAGE_SIZE
+        chunk = self.songs[start:start + LIKED_PAGE_SIZE]
+        embed = discord.Embed(
+            title=f"❤️  {self.user.display_name}'s Liked Songs",
+            color=0xE91E63
+        )
+        lines = []
+        for i, s in enumerate(chunk, start=start + 1):
+            dur_ms = 0
+            lines.append(f"`{i}.` **[{s['title']}]({s['uri']})** — {s['author']}")
+        embed.description = "\n".join(lines) if lines else "*No liked songs yet.*"
+        embed.set_footer(text=f"Page {self.page + 1}/{self.pages}  •  {len(self.songs)} songs total")
+        if chunk and chunk[0].get("thumb"):
+            embed.set_thumbnail(url=chunk[0]["thumb"])
+        return embed
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+# ─── Music Controls View ──────────────────────────────────────────────────────
+
 class MusicView(discord.ui.View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=None)
@@ -192,6 +303,22 @@ class MusicView(discord.ui.View):
             await interaction.response.send_message(f"🔊 Volume: **{new_vol}**", ephemeral=True)
         else:
             await interaction.response.send_message("Nothing is playing.", ephemeral=True)
+
+    @discord.ui.button(emoji="❤️", style=discord.ButtonStyle.danger)
+    async def like_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        player = self._player()
+        if not player or not player.current:
+            return await interaction.response.send_message("❌ Nothing is playing.", ephemeral=True)
+        track = player.current
+        added = likes_mgr.like(interaction.user.id, track)
+        if added:
+            await interaction.response.send_message(
+                f"❤️ Added **{track.title}** to your liked songs!", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"💔 **{track.title}** is already in your liked songs.", ephemeral=True
+            )
 
 
 class SearchView(discord.ui.View):
@@ -866,6 +993,100 @@ async def lyrics_cmd(ctx, *, query: str = None):
     view   = LyricsView(pages, display, thumb)
     await msg.edit(embed=view._build_embed(), view=view)
 
+# ─── Liked Songs Commands ─────────────────────────────────────────────────────
+
+@bot.command(name="like", aliases=["fav", "favourite", "heart"])
+async def like_cmd(ctx):
+    player = bot.lavalink.player_manager.get(ctx.guild.id) if hasattr(bot, 'lavalink') else None
+    if not player or not player.current:
+        return await ctx.send(embed=discord.Embed(description="❌ Nothing is playing right now.", color=ERROR))
+    track = player.current
+    added = likes_mgr.like(ctx.author.id, track)
+    thumb = get_thumbnail(track)
+    if added:
+        embed = discord.Embed(
+            title=track.title[:256],
+            description=f"by **{track.author}**\nAdded to your liked songs ❤️",
+            color=0xE91E63
+        )
+        embed.set_author(name="❤️  Liked!")
+        if thumb:
+            embed.set_thumbnail(url=thumb)
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send(embed=discord.Embed(
+            description=f"💔 **{track.title}** is already in your liked songs.",
+            color=WARNING
+        ))
+
+@bot.command(name="unlike", aliases=["unfav", "removefav"])
+async def unlike_cmd(ctx, index: int = None):
+    if index is None:
+        return await ctx.send(embed=discord.Embed(description="❌ Usage: `!unlike <number>` — use `!liked` to see numbers.", color=ERROR))
+    removed = likes_mgr.unlike(ctx.author.id, index)
+    if removed:
+        await ctx.send(embed=discord.Embed(
+            description=f"🗑 Removed **{removed['title']}** from your liked songs.",
+            color=SUCCESS
+        ))
+    else:
+        await ctx.send(embed=discord.Embed(description="❌ Invalid number. Use `!liked` to see your list.", color=ERROR))
+
+@bot.command(name="liked", aliases=["favs", "favourites", "faves"])
+async def liked_cmd(ctx, member: discord.Member = None):
+    target = member or ctx.author
+    songs  = likes_mgr.get(target.id)
+    if not songs:
+        who = "You have" if target == ctx.author else f"**{target.display_name}** has"
+        return await ctx.send(embed=discord.Embed(
+            description=f"💔 {who} no liked songs yet.\nUse `!like` or press ❤️ while a song is playing!",
+            color=0xE91E63
+        ))
+    view = LikedView(songs, target)
+    await ctx.send(embed=view.build_embed(), view=view)
+
+@bot.command(name="playliked", aliases=["playfav", "playfavs"])
+async def playliked_cmd(ctx, member: discord.Member = None):
+    target = member or ctx.author
+    songs  = likes_mgr.get(target.id)
+    if not songs:
+        who = "You have" if target == ctx.author else f"**{target.display_name}** has"
+        return await ctx.send(embed=discord.Embed(
+            description=f"💔 {who} no liked songs. Use `!like` to add some!",
+            color=ERROR
+        ))
+    channel = await ensure_voice(ctx)
+    if not channel:
+        return
+    pm = get_pm(ctx.guild.id)
+    if not pm:
+        return
+    msg = await ctx.send(embed=discord.Embed(
+        description=f"❤️ Queuing **{len(songs)}** liked song(s) from **{target.display_name}**...",
+        color=0xE91E63
+    ))
+    queued = 0
+    for song in songs:
+        try:
+            await pm.play(ctx.guild.id, channel.id, song["uri"], auto_play=False, ctx=ctx)
+            queued += 1
+        except Exception:
+            pass
+    # Start playback if not already playing
+    player = bot.lavalink.player_manager.get(ctx.guild.id) if hasattr(bot, 'lavalink') else None
+    if player and not player.is_playing:
+        await player.play()
+        if player.is_playing:
+            view = MusicView(ctx.guild.id)
+            await msg.edit(view=view)
+            np_messages[ctx.guild.id] = msg
+    embed = discord.Embed(
+        title=f"❤️  {target.display_name}'s Liked Songs",
+        description=f"Queued **{queued}** track(s) · Use `!queue` to see them",
+        color=0xE91E63
+    )
+    await msg.edit(embed=embed)
+
 # ─── Help Command ─────────────────────────────────────────────────────────────
 
 @bot.command(name="help", aliases=["h", "commands"])
@@ -891,6 +1112,12 @@ async def help_cmd(ctx):
     ), inline=False)
     embed.add_field(name="🔊 Volume", value="`!volume [1-1000]`", inline=True)
     embed.add_field(name="🌙 24/7 Mode", value="`!247`", inline=True)
+    embed.add_field(name="❤️ Liked Songs", value=(
+        "`!like` / `!fav` — like current song\n"
+        "`!liked` — your liked songs list\n"
+        "`!unlike <#>` — remove from likes\n"
+        "`!playliked` — queue all your liked songs"
+    ), inline=False)
     embed.add_field(name="📄 Lyrics", value="`!lyrics` — current song · `!lyrics <song>` · `!lyrics artist - title`", inline=False)
     embed.add_field(name="🗣 TTS", value="`!tts <text>` · `!ttsvoice <voice>`", inline=False)
     embed.add_field(name="🎯 Sources", value=(
