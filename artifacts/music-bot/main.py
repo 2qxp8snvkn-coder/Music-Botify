@@ -355,9 +355,11 @@ async def auto_np_update():
             player = bot.lavalink.player_manager.get(guild_id)
             pm = get_pm(guild_id)
             if not player or not player.current or not pm:
+                np_messages.pop(guild_id, None)
                 continue
             embed = build_np_embed(player, pm, guild_id)
-            await msg.edit(embed=embed)
+            view  = MusicView(guild_id)
+            await msg.edit(embed=embed, view=view)
         except Exception:
             np_messages.pop(guild_id, None)
 
@@ -404,6 +406,12 @@ async def play_cmd(ctx, *, query: str = None):
         return await ctx.send(embed=discord.Embed(description="❌ Bot not ready.", color=ERROR))
     msg = await ctx.send(embed=discord.Embed(description=f"🔍 Searching: **{query}**...", color=ACCENT))
     await pm.play(ctx.guild.id, channel.id, query, auto_play=True, response_msg=msg, ctx=ctx)
+    # Register for live progress bar updates if song started immediately
+    player = bot.lavalink.player_manager.get(ctx.guild.id) if hasattr(bot, 'lavalink') else None
+    if player and player.is_playing:
+        view = MusicView(ctx.guild.id)
+        await msg.edit(view=view)
+        np_messages[ctx.guild.id] = msg
 
 @bot.command(name="search", aliases=["find"])
 async def search_cmd(ctx, *, query: str = None):
