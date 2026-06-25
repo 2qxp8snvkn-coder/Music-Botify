@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import asyncio
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 from core.player import PlayerManager
@@ -699,6 +700,108 @@ async def ttsvoice_cmd(ctx, voice: str = None):
     else:
         await ctx.send(embed=discord.Embed(description="❌ Unknown voice. Use: `swara` or `madhur`", color=ERROR))
 
+# ─── Lyrics ───────────────────────────────────────────────────────────────────
+
+LYRICS_PAGE = 1400   # chars per page
+
+class LyricsView(discord.ui.View):
+    def __init__(self, pages: list[str], title: str, thumb: str | None):
+        super().__init__(timeout=120)
+        self.pages  = pages
+        self.title  = title
+        self.thumb  = thumb
+        self.page   = 0
+        self._update_buttons()
+
+    def _update_buttons(self):
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page == len(self.pages) - 1
+
+    def _build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title=self.title,
+            description=self.pages[self.page],
+            color=0x1DB954
+        )
+        embed.set_author(name="📄  Lyrics")
+        embed.set_footer(text=f"Page {self.page + 1} of {len(self.pages)}")
+        if self.thumb and self.page == 0:
+            embed.set_thumbnail(url=self.thumb)
+        return embed
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+
+async def fetch_lyrics(artist: str, title: str) -> str | None:
+    from urllib.parse import quote
+    import re
+    clean = re.sub(r"\(.*?\)|\[.*?\]|feat\..*|ft\..*|official.*|lyrics.*|audio.*|video.*|hd|4k", "", title, flags=re.IGNORECASE).strip(" -–")
+    url = f"https://api.lyrics.ovh/v1/{quote(artist)}/{quote(clean)}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as r:
+                if r.status == 200:
+                    data = await r.json(content_type=None)
+                    return data.get("lyrics") or None
+    except Exception:
+        pass
+    return None
+
+@bot.command(name="lyrics", aliases=["ly", "lyric"])
+async def lyrics_cmd(ctx, *, query: str = None):
+    player = bot.lavalink.player_manager.get(ctx.guild.id) if hasattr(bot, 'lavalink') else None
+
+    # Use current track if no query given
+    if not query:
+        if not player or not player.current:
+            return await ctx.send(embed=discord.Embed(
+                description="❌ Nothing is playing. Use `!lyrics <song name>` to search.",
+                color=ERROR
+            ))
+        artist = player.current.author
+        title  = player.current.title
+        thumb  = get_thumbnail(player.current) if player.current else None
+    else:
+        # Parse "artist - title" or just "title"
+        if " - " in query:
+            artist, title = query.split(" - ", 1)
+        else:
+            artist, title = "", query
+        thumb = None
+
+    display = f"{artist} — {title}".strip(" —") if artist else title
+    msg = await ctx.send(embed=discord.Embed(
+        description=f"🔍 Fetching lyrics for **{display}**...",
+        color=ACCENT
+    ))
+
+    lyrics = await fetch_lyrics(artist, title)
+
+    # Fallback: swap artist/title order if first try fails
+    if not lyrics and artist:
+        lyrics = await fetch_lyrics(title, artist)
+
+    if not lyrics:
+        return await msg.edit(embed=discord.Embed(
+            description=f"❌ Lyrics not found for **{display}**.\nTry: `!lyrics artist - song title`",
+            color=ERROR
+        ))
+
+    # Split into pages
+    lyrics = lyrics.strip()
+    pages  = [lyrics[i:i + LYRICS_PAGE] for i in range(0, len(lyrics), LYRICS_PAGE)]
+    view   = LyricsView(pages, display, thumb)
+    await msg.edit(embed=view._build_embed(), view=view)
+
 # ─── Help Command ─────────────────────────────────────────────────────────────
 
 @bot.command(name="help", aliases=["h", "commands"])
@@ -724,6 +827,7 @@ async def help_cmd(ctx):
     ), inline=False)
     embed.add_field(name="🔊 Volume", value="`!volume [1-1000]`", inline=True)
     embed.add_field(name="🌙 24/7 Mode", value="`!247`", inline=True)
+    embed.add_field(name="📄 Lyrics", value="`!lyrics` — current song · `!lyrics <song>` · `!lyrics artist - title`", inline=False)
     embed.add_field(name="🗣 TTS", value="`!tts <text>` · `!ttsvoice <voice>`", inline=False)
     embed.add_field(name="🎯 Sources", value=(
         "`sp ` Spotify · `yt ` YouTube · `sc ` SoundCloud\n"
