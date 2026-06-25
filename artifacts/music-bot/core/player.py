@@ -339,14 +339,19 @@ class PlayerManager:
                 embed.set_footer(text=footer_text, icon_url=footer_icon)
             else:
                 # ── Now Playing ───────────────────────────────────
+                BAR = 14
+                bar_chars = ["▬"] * BAR
+                bar_chars[0] = "🔘"
+                bar = "".join(bar_chars)
+
                 embed = discord.Embed(color=GREEN)
                 embed.set_author(name="▶  Now Playing")
                 embed.title = title
                 if uri:
                     embed.url = uri
                 embed.description = (
-                    f"by **{track.author}**\n"
-                    f"⏱ `00:00` / `{dur_str}`\n"
+                    f"by **{track.author}**\n\n"
+                    f"`00:00` {bar} `{dur_str}`\n\n"
                     f"{_source_badge(source_label)}"
                 )
                 if thumb:
