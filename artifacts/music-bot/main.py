@@ -250,36 +250,49 @@ class SearchView(discord.ui.View):
 
 def build_np_embed(player, pm, guild_id: int) -> discord.Embed:
     track = player.current
-    pos = player.position
-    dur = track.duration
+    pos   = player.position
+    dur   = track.duration
+
+    # time strings
     mins_p, secs_p = divmod(int(pos / 1000), 60)
     mins_d, secs_d = divmod(int(dur / 1000), 60)
+    pos_str = f"{mins_p:02d}:{secs_p:02d}"
+    dur_str = f"{mins_d:02d}:{secs_d:02d}"
 
-    state = "⏸ Paused" if player.paused else "▶ Playing"
-    loop  = loop_emoji(player)
-    bar   = progress_bar(pos, dur)
-    filt  = pm.active_filter.get(guild_id, "none")
-    q_len = len(player.queue)
+    # working progress bar — fills based on actual playback position
+    BAR_LEN = 16
+    filled  = int((pos / dur) * BAR_LEN) if dur > 0 else 0
+    dot_pos = max(0, min(filled, BAR_LEN - 1))
+    bar_chars = ["▬"] * BAR_LEN
+    bar_chars[dot_pos] = "🔘"
+    bar = "".join(bar_chars)
 
+    state  = "⏸ Paused" if player.paused else "▶ Playing"
+    loop   = loop_emoji(player)
+    filt   = pm.active_filter.get(guild_id, "none")
+    q_len  = len(player.queue)
+    thumb  = get_thumbnail(track)
+
+    uri   = getattr(track, 'uri', None)
     embed = discord.Embed(color=MUSIC)
-    embed.set_author(name="Now Playing 🎵")
+    embed.set_author(name="🎵  Now Playing")
     embed.title = track.title[:256]
+    if uri:
+        embed.url = uri
     embed.description = (
-        f"**{track.author}**\n\n"
-        f"{bar}\n"
-        f"`{mins_p:02d}:{secs_p:02d}` / `{mins_d:02d}:{secs_d:02d}`"
+        f"by **{track.author}**\n\n"
+        f"`{pos_str}` {bar} `{dur_str}`"
     )
-    embed.add_field(name="Status", value=state, inline=True)
-    embed.add_field(name="Loop", value=loop, inline=True)
-    embed.add_field(name="Volume", value=f"🔊 {player.volume}", inline=True)
-    embed.add_field(name="Filter", value=f"🎛 {filt}", inline=True)
-    embed.add_field(name="In Queue", value=f"📋 {q_len} track(s)", inline=True)
+    embed.add_field(name="Status",   value=state,              inline=True)
+    embed.add_field(name="Loop",     value=loop,               inline=True)
+    embed.add_field(name="Volume",   value=f"🔊 {player.volume}", inline=True)
+    embed.add_field(name="Filter",   value=f"🎛 {filt}",       inline=True)
+    embed.add_field(name="In Queue", value=f"📋 {q_len}",      inline=True)
 
-    thumb = get_thumbnail(track)
     if thumb:
         embed.set_thumbnail(url=thumb)
 
-    embed.set_footer(text="Use the buttons below to control playback")
+    embed.set_footer(text="Buttons update every 15s  •  CYBORG Music")
     return embed
 
 # ─── Events ───────────────────────────────────────────────────────────────────

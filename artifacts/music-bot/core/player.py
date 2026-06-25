@@ -326,32 +326,31 @@ class PlayerManager:
             if player.is_playing:
                 # ── Added to Queue ────────────────────────────────
                 embed = discord.Embed(color=BLUE)
-                embed.set_author(name=f"✅  Added to Queue  ·  Position #{queue_pos}")
+                embed.set_author(name=f"✅  Added to Queue  ·  #{queue_pos}")
                 embed.title = title
                 if uri:
                     embed.url = uri
                 embed.description = (
-                    f"by **{track.author}**\n\n"
-                    f"⏱ `{dur_str}`   {_source_badge(source_label)}"
+                    f"by **{track.author}**\n"
+                    f"⏱ `{dur_str}`  ·  {_source_badge(source_label)}"
                 )
                 if thumb:
                     embed.set_thumbnail(url=thumb)
                 embed.set_footer(text=footer_text, icon_url=footer_icon)
             else:
                 # ── Now Playing ───────────────────────────────────
-                bar = self._mini_bar(0, track.duration)
                 embed = discord.Embed(color=GREEN)
                 embed.set_author(name="▶  Now Playing")
                 embed.title = title
                 if uri:
                     embed.url = uri
                 embed.description = (
-                    f"by **{track.author}**\n\n"
-                    f"`00:00` {bar} `{dur_str}`\n\n"
+                    f"by **{track.author}**\n"
+                    f"⏱ `00:00` / `{dur_str}`\n"
                     f"{_source_badge(source_label)}"
                 )
                 if thumb:
-                    embed.set_image(url=thumb)
+                    embed.set_thumbnail(url=thumb)
                 embed.set_footer(text=footer_text, icon_url=footer_icon)
 
             if response_msg:
