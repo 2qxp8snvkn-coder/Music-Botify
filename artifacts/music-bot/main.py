@@ -749,20 +749,80 @@ class LyricsView(discord.ui.View):
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
-async def fetch_lyrics(artist: str, title: str) -> str | None:
-    from urllib.parse import quote
+def _clean_title(title: str) -> str:
     import re
-    clean = re.sub(r"\(.*?\)|\[.*?\]|feat\..*|ft\..*|official.*|lyrics.*|audio.*|video.*|hd|4k", "", title, flags=re.IGNORECASE).strip(" -–")
-    url = f"https://api.lyrics.ovh/v1/{quote(artist)}/{quote(clean)}"
+    return re.sub(
+        r"\(.*?\)|\[.*?\]|feat\..*|ft\..*|official.*|lyrics.*|audio.*|video.*|\bhd\b|\b4k\b",
+        "", title, flags=re.IGNORECASE
+    ).strip(" -–—")
+
+async def _try_lyrics_ovh(session: aiohttp.ClientSession, artist: str, title: str) -> str | None:
+    from urllib.parse import quote
+    if not artist or not title:
+        return None
+    url = f"https://api.lyrics.ovh/v1/{quote(artist.strip())}/{quote(title.strip())}"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as r:
-                if r.status == 200:
-                    data = await r.json(content_type=None)
-                    return data.get("lyrics") or None
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as r:
+            if r.status == 200:
+                data = await r.json(content_type=None)
+                lyr = data.get("lyrics", "").strip()
+                return lyr or None
     except Exception:
         pass
     return None
+
+async def _try_some_random_api(session: aiohttp.ClientSession, query: str) -> str | None:
+    from urllib.parse import quote
+    url = f"https://some-random-api.com/lyrics?title={quote(query.strip())}"
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as r:
+            if r.status == 200:
+                data = await r.json(content_type=None)
+                lyr = data.get("lyrics", "").strip()
+                return lyr or None
+    except Exception:
+        pass
+    return None
+
+async def _try_lrclib(session: aiohttp.ClientSession, artist: str, title: str) -> str | None:
+    from urllib.parse import urlencode
+    params = urlencode({"artist_name": artist, "track_name": title})
+    url = f"https://lrclib.net/api/search?{params}"
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as r:
+            if r.status == 200:
+                results = await r.json(content_type=None)
+                for item in results[:3]:
+                    lyr = (item.get("plainLyrics") or item.get("syncedLyrics") or "").strip()
+                    if lyr:
+                        return lyr
+    except Exception:
+        pass
+    return None
+
+async def fetch_lyrics(artist: str, title: str) -> str | None:
+    clean = _clean_title(title)
+    async with aiohttp.ClientSession() as session:
+        # 1. lyrics.ovh with artist + cleaned title
+        lyr = await _try_lyrics_ovh(session, artist, clean)
+        if lyr:
+            return lyr
+        # 2. lrclib.net (good coverage, plain text lyrics)
+        lyr = await _try_lrclib(session, artist, clean)
+        if lyr:
+            return lyr
+        # 3. some-random-api with "artist title" combined
+        if artist:
+            lyr = await _try_some_random_api(session, f"{artist} {clean}")
+            if lyr:
+                return lyr
+        # 4. some-random-api with just the title
+        lyr = await _try_some_random_api(session, clean)
+        if lyr:
+            return lyr
+        # 5. lyrics.ovh with title only (no artist)
+        lyr = await _try_lyrics_ovh(session, clean, artist) if artist else None
+        return lyr
 
 @bot.command(name="lyrics", aliases=["ly", "lyric"])
 async def lyrics_cmd(ctx, *, query: str = None):
@@ -794,13 +854,9 @@ async def lyrics_cmd(ctx, *, query: str = None):
 
     lyrics = await fetch_lyrics(artist, title)
 
-    # Fallback: swap artist/title order if first try fails
-    if not lyrics and artist:
-        lyrics = await fetch_lyrics(title, artist)
-
     if not lyrics:
         return await msg.edit(embed=discord.Embed(
-            description=f"❌ Lyrics not found for **{display}**.\nTry: `!lyrics artist - song title`",
+            description=f"❌ Couldn't find lyrics for **{display}**.\nCheck the spelling or try: `!lyrics Dominic Fike - Babydoll`",
             color=ERROR
         ))
 
