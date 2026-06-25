@@ -34,6 +34,21 @@ SOURCE_NAMES = {
     "dzsearch": "Deezer",
 }
 
+SOURCE_EMOJI = {
+    "Spotify":     "🟢",
+    "YouTube":     "🔴",
+    "SoundCloud":  "🟠",
+    "JioSaavn":    "🔵",
+    "Apple Music": "🍎",
+    "Deezer":      "🟣",
+    "Best Match":  "🔍",
+    "URL":         "🔗",
+}
+
+def _source_badge(label: str) -> str:
+    emoji = SOURCE_EMOJI.get(label, "🎵")
+    return f"{emoji} {label}"
+
 URL_PATTERNS = [
     (re.compile(r"https?://(open\.spotify\.com|spotify\.com)/"), "Spotify"),
     (re.compile(r"https?://(www\.youtube\.com|youtu\.be|music\.youtube\.com)/"), "YouTube"),
@@ -233,18 +248,18 @@ class PlayerManager:
         else:
             results, source_label = await self._multi_source_search(player, query)
             if results and results.tracks:
-                return await self._handle_results(player, results, query, source_label or "Best Match", auto_play, response_msg)
+                return await self._handle_results(player, results, query, source_label or "Best Match", auto_play, response_msg, ctx=ctx)
             if response_msg:
-                await response_msg.edit(content="❌ No results found.")
+                await response_msg.edit(content=None, embed=discord.Embed(description="❌ No results found.", color=0xF04747))
             return logger.error("No results found.")
 
         results = await player.node.get_tracks(final_query)
         if not results or results.load_type == LoadType.EMPTY or not results.tracks:
             if response_msg:
-                await response_msg.edit(content="❌ No results found.")
+                await response_msg.edit(content=None, embed=discord.Embed(description="❌ No results found.", color=0xF04747))
             return logger.error("No results found.")
 
-        await self._handle_results(player, results, query, source_label, auto_play, response_msg)
+        await self._handle_results(player, results, query, source_label, auto_play, response_msg, ctx=ctx)
 
     @staticmethod
     def _track_thumbnail(track) -> str | None:
@@ -256,53 +271,88 @@ class PlayerManager:
             return f"https://img.youtube.com/vi/{ident}/maxresdefault.jpg"
         return None
 
-    async def _handle_results(self, player, results, query, source_label, auto_play=True, response_msg=None):
-        MUSIC_GREEN = 0x1DB954
-        QUEUE_BLUE  = 0x5865F2
+    @staticmethod
+    def _fmt_duration(ms: int) -> str:
+        s = int(ms / 1000)
+        m, s = divmod(s, 60)
+        h, m = divmod(m, 60)
+        return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+    @staticmethod
+    def _mini_bar(pos: int, dur: int, size: int = 14) -> str:
+        filled = int((pos / dur) * size) if dur > 0 else 0
+        return "▰" * filled + "▱" * (size - filled)
+
+    async def _handle_results(self, player, results, query, source_label, auto_play=True, response_msg=None, ctx=None):
+        GREEN  = 0x1DB954
+        BLUE   = 0x5865F2
+        ORANGE = 0xFA8C1C
+
+        requester = ctx.author if ctx else None
+        footer_icon = str(requester.display_avatar.url) if requester else discord.Embed.Empty
+        footer_text = f"Requested by {requester.display_name}" if requester else "CYBORG Music"
 
         if results.load_type == LoadType.PLAYLIST:
             tracks = results.tracks
             for track in tracks:
                 player.add(track=track)
+            total_ms = sum(t.duration for t in tracks)
             logger.success(f"Added playlist: {results.playlist_info.name} ({len(tracks)} tracks)")
             if response_msg:
-                embed = discord.Embed(
-                    title=results.playlist_info.name,
-                    description=f"📋 Added **{len(tracks)} tracks** from playlist",
-                    color=QUEUE_BLUE
-                )
-                embed.set_footer(text=f"Source: {source_label}")
                 thumb = self._track_thumbnail(tracks[0]) if tracks else None
+                embed = discord.Embed(color=ORANGE)
+                embed.set_author(name="📋  Playlist Added to Queue")
+                embed.title = results.playlist_info.name[:256]
+                embed.description = (
+                    f"**{len(tracks)} tracks** added\n"
+                    f"⏱ Total duration: `{self._fmt_duration(total_ms)}`\n"
+                    f"{_source_badge(source_label)}"
+                )
                 if thumb:
                     embed.set_thumbnail(url=thumb)
+                embed.set_footer(text=footer_text, icon_url=footer_icon)
                 await response_msg.edit(content=None, embed=embed)
         else:
             track = results.tracks[0]
             player.add(track=track)
-            mins, secs = divmod(int(track.duration / 1000), 60)
-            duration_str = f"{mins:02d}:{secs:02d}"
+            dur_str  = self._fmt_duration(track.duration)
             queue_pos = len(player.queue)
-            thumb = self._track_thumbnail(track)
+            thumb    = self._track_thumbnail(track)
+            uri      = getattr(track, 'uri', None)
+            title    = track.title[:256]
+            title_md = f"[{title}]({uri})" if uri else title
             logger.success(f"Queued: {track.title}")
 
             if player.is_playing:
-                embed = discord.Embed(
-                    title=track.title[:256],
-                    color=QUEUE_BLUE
+                # ── Added to Queue ────────────────────────────────
+                embed = discord.Embed(color=BLUE)
+                embed.set_author(name=f"✅  Added to Queue  ·  Position #{queue_pos}")
+                embed.title = title
+                if uri:
+                    embed.url = uri
+                embed.description = (
+                    f"by **{track.author}**\n\n"
+                    f"⏱ `{dur_str}`   {_source_badge(source_label)}"
                 )
-                embed.set_author(name=f"✅  Added to Queue  •  #{queue_pos}")
-                embed.description = f"**{track.author}**\n⏱ `{duration_str}`  •  {source_label}"
                 if thumb:
                     embed.set_thumbnail(url=thumb)
+                embed.set_footer(text=footer_text, icon_url=footer_icon)
             else:
-                embed = discord.Embed(
-                    title=track.title[:256],
-                    color=MUSIC_GREEN
-                )
+                # ── Now Playing ───────────────────────────────────
+                bar = self._mini_bar(0, track.duration)
+                embed = discord.Embed(color=GREEN)
                 embed.set_author(name="▶  Now Playing")
-                embed.description = f"**{track.author}**\n⏱ `{duration_str}`  •  {source_label}"
+                embed.title = title
+                if uri:
+                    embed.url = uri
+                embed.description = (
+                    f"by **{track.author}**\n\n"
+                    f"`00:00` {bar} `{dur_str}`\n\n"
+                    f"{_source_badge(source_label)}"
+                )
                 if thumb:
                     embed.set_image(url=thumb)
+                embed.set_footer(text=footer_text, icon_url=footer_icon)
 
             if response_msg:
                 await response_msg.edit(content=None, embed=embed)
