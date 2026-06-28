@@ -2,10 +2,10 @@
     "nodes": [
         {
             "name": "main",
-            "host": "lava-v4.millohost.my.id",
-            "port": 443,
-            "auth": "https://discord.gg/mjS5J2K3ep",
-            "secure": true
+            "host": "89.106.84.59",
+            "port": 4000,
+            "password": "heavencloud.in",
+            "secure": false
         }
     ]
 }
