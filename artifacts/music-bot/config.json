@@ -5,7 +5,7 @@
             "host": "lavalinkv4.serenetia.com",
             "port": 443,
             "auth": "https://seretia.link/discord",
-            "secure": false
+            "secure": true
         }
     ]
 }
