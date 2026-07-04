@@ -5,7 +5,7 @@
             "host": "lavalink-v4.triniumhost.com",
             "port": 443,
             "auth": "free",
-            "secure": false
+            "secure": true
         }
     ]
 }
