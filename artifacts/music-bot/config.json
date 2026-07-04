@@ -2,9 +2,9 @@
     "nodes": [
         {
             "name": "main",
-            "host": "lavalinkv4.serenetia.com",
+            "host": "lavalink-v4.triniumhost.com",
             "port": 443,
-            "auth": "https://seretia.link/discord",
+            "auth": "free",
             "secure": true
         }
     ]
