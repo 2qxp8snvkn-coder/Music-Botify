@@ -2,9 +2,9 @@
   "nodes": [
     {
       "name": "main",
-      "host": "lavalink.devamop.in",
+      "host": "lavalinkv4.serenetia.com",
       "port": 443,
-      "auth": "DevamOP",
+      "auth": "https://dsc.gg/ajidevserver",
       "secure": true
     }
   ]
