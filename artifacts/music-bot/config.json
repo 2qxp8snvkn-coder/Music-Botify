@@ -2,7 +2,7 @@
   "nodes": [
     {
       "name": "main",
-      "host": "lavalinkv4.serenetia.com",
+      "host": "lava-v4.ajieblogs.eu.org",
       "port": 443,
       "auth": "https://dsc.gg/ajidevserver",
       "secure": true
