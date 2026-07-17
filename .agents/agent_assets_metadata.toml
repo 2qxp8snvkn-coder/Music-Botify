@@ -4,70 +4,70 @@ uploads = []
 id = "y57rSPdOptRKw0lIJpTlw"
 uri = "file://artifacts/music-bot/emojis/music.png"
 type = "image"
-title = "music category emoji"
+title = "music emoji"
 
 [[generated]]
 id = "PB9JifBcK9oXOtwI1ptnq"
 uri = "file://artifacts/music-bot/emojis/filters.png"
 type = "image"
-title = "filters category emoji"
+title = "filters emoji"
 
 [[generated]]
 id = "G2fiCuCNQjDJko_xUuEDN"
 uri = "file://artifacts/music-bot/emojis/favourite.png"
 type = "image"
-title = "favourite category emoji"
+title = "favourite emoji"
 
 [[generated]]
 id = "DZW281yJbXKAfZfgp5fGq"
 uri = "file://artifacts/music-bot/emojis/lyrics.png"
 type = "image"
-title = "lyrics tts category emoji"
+title = "lyrics emoji"
 
 [[generated]]
 id = "KaAKnbb4yHLudKozhzNok"
 uri = "file://artifacts/music-bot/emojis/sources.png"
 type = "image"
-title = "sources category emoji"
+title = "sources emoji"
 
 [[generated]]
 id = "upQKIUMkCSlRhK_JnfXcr"
 uri = "file://artifacts/music-bot/emojis/allcommands.png"
 type = "image"
-title = "all commands category emoji"
+title = "all commands emoji"
 
 [[outputs]]
 id = "Fj0Ucwc_tHHybaMddUFWe"
 uri = "file://artifacts/music-bot/emojis/music.png"
 type = "image"
-title = "🎵 Music"
+title = "Music"
 
 [[outputs]]
 id = "UnwC5EWYqd--_Eem4eQ92"
 uri = "file://artifacts/music-bot/emojis/filters.png"
 type = "image"
-title = "🎛️ Filters"
+title = "Filters"
 
 [[outputs]]
 id = "S_PKLiz_ku0bdJ3H82Fob"
 uri = "file://artifacts/music-bot/emojis/favourite.png"
 type = "image"
-title = "❤️ Favourite"
+title = "Favourite"
 
 [[outputs]]
 id = "6QlVwVKa8C98tRBtejpWN"
 uri = "file://artifacts/music-bot/emojis/lyrics.png"
 type = "image"
-title = "🎤 Lyrics & TTS"
+title = "Lyrics & TTS"
 
 [[outputs]]
 id = "NRHXElP873UdUMDYxf8OE"
 uri = "file://artifacts/music-bot/emojis/sources.png"
 type = "image"
-title = "🎧 Sources"
+title = "Sources"
 
 [[outputs]]
 id = "rh8J-HAdNy_3rPm4sL9sC"
 uri = "file://artifacts/music-bot/emojis/allcommands.png"
 type = "image"
-title = "🧭 All Commands"
+title = "All Commands"
