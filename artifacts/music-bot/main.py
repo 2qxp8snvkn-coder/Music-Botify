@@ -227,14 +227,14 @@ class MusicView(discord.ui.View):
     def _player(self):
         return bot.lavalink.player_manager.get(self.guild_id) if hasattr(bot, 'lavalink') else None
 
-    @discord.ui.button(emoji="⏮", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(emoji=discord.PartialEmoji(name="play", id=1527769290630103070), style=discord.ButtonStyle.secondary)
     async def replay_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         pm = self._pm()
         if pm:
             await pm.replay(self.guild_id)
         await interaction.response.send_message("🔄 Replaying current track!", ephemeral=True)
 
-    @discord.ui.button(emoji="⏸", style=discord.ButtonStyle.primary, custom_id="pause_resume")
+    @discord.ui.button(emoji=discord.PartialEmoji(name="pause", id=1527769392857747466), style=discord.ButtonStyle.primary, custom_id="pause_resume")
     async def pause_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         pm = self._pm()
         player = self._player()
@@ -252,7 +252,7 @@ class MusicView(discord.ui.View):
             await pm.skip(self.guild_id)
         await interaction.response.send_message("⏭ Skipped!", ephemeral=True)
 
-    @discord.ui.button(emoji="⏹", style=discord.ButtonStyle.danger)
+    @discord.ui.button(emoji=discord.PartialEmoji(name="mutemusic", id=1527770705314451538), style=discord.ButtonStyle.danger)
     async def stop_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         pm = self._pm()
         if pm:
@@ -282,7 +282,7 @@ class MusicView(discord.ui.View):
             await pm.loop(self.guild_id, "off")
             await interaction.response.send_message("➡️ Loop off.", ephemeral=True)
 
-    @discord.ui.button(emoji="🔉", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(emoji=discord.PartialEmoji(name="volumeminus", id=1527771022571601940), style=discord.ButtonStyle.secondary)
     async def vol_down_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self._player()
         pm = self._pm()
@@ -293,7 +293,7 @@ class MusicView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing.", ephemeral=True)
 
-    @discord.ui.button(emoji="🔊", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(emoji=discord.PartialEmoji(name="volumeplus", id=1527771081958490195), style=discord.ButtonStyle.secondary)
     async def vol_up_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self._player()
         pm = self._pm()
@@ -324,14 +324,14 @@ class MusicView(discord.ui.View):
         placeholder="🎛  Music Controls…",
         min_values=1, max_values=1,
         options=[
-            discord.SelectOption(label="Replay",        value="replay",    emoji="⏮", description="Restart the current track from the beginning"),
-            discord.SelectOption(label="Stop",          value="stop",      emoji="⏹", description="Stop music and disconnect from VC"),
+            discord.SelectOption(label="Replay",        value="replay",    emoji=discord.PartialEmoji(name="play",        id=1527769290630103070), description="Restart the current track from the beginning"),
+            discord.SelectOption(label="Stop",          value="stop",      emoji=discord.PartialEmoji(name="mutemusic",  id=1527770705314451538), description="Stop music and disconnect from VC"),
             discord.SelectOption(label="Shuffle",       value="shuffle",   emoji="🔀", description="Shuffle the queue"),
             discord.SelectOption(label="Loop — Track",  value="loop_t",    emoji="🔂", description="Loop the current track"),
             discord.SelectOption(label="Loop — Queue",  value="loop_q",    emoji="🔁", description="Loop the entire queue"),
             discord.SelectOption(label="Loop — Off",    value="loop_off",  emoji="➡️", description="Disable loop"),
-            discord.SelectOption(label="Volume  –20",   value="vol_down",  emoji="🔉", description="Decrease volume by 20"),
-            discord.SelectOption(label="Volume  +20",   value="vol_up",    emoji="🔊", description="Increase volume by 20"),
+            discord.SelectOption(label="Volume  –20",   value="vol_down",  emoji=discord.PartialEmoji(name="volumeminus", id=1527771022571601940), description="Decrease volume by 20"),
+            discord.SelectOption(label="Volume  +20",   value="vol_up",    emoji=discord.PartialEmoji(name="volumeplus",  id=1527771081958490195), description="Increase volume by 20"),
         ]
     )
     async def controls_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -1146,7 +1146,7 @@ HELP_CATEGORIES = [
     {
         "id": "music",
         "label": "Music",
-        "emoji": "🎵",
+        "emoji": "<:music:1527769480221032449>",
         "description": "Playback, queue control, and everything audio.",
         "fields": [
             ("🎵 Playback", "`!play <song/url>` — search & play\n`!search <song>` — pick from 5 results\n`!pause` / `!resume` — pause or resume\n`!skip` — skip track · `!replay` — restart\n`!seek <time>` — jump to position\n`!join` — join VC · `!dc` — disconnect"),
@@ -1157,7 +1157,7 @@ HELP_CATEGORIES = [
     {
         "id": "filters",
         "label": "Filters",
-        "emoji": "🎛️",
+        "emoji": "<:filter:1527770554927550554>",
         "description": "Audio effects, equalizer, and sound presets.",
         "fields": [
             ("🎛️ Filters", "`!filter <name>` — apply an effect\n`!filter clear` — remove all effects\n`!filters` — list all available filters"),
@@ -1196,7 +1196,7 @@ HELP_CATEGORIES = [
     {
         "id": "all",
         "label": "All Commands",
-        "emoji": "🧭",
+        "emoji": "<:information:1527770596325327028>",
         "description": "Browse every available command at a glance.",
         "fields": [
             ("All Commands", (
