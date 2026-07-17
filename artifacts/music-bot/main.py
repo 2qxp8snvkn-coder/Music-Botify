@@ -1213,7 +1213,7 @@ HELP_CATEGORIES = [
 
 _TOTAL_COMMANDS = 22
 
-HELP_COLOR = 0x2b2d31  # matches Discord dark mode — hides the left bar
+HELP_COLOR = 0x313338  # Discord dark mode embed background (2024)
 
 def _build_help_home(ctx) -> discord.Embed:
     embed = discord.Embed(
