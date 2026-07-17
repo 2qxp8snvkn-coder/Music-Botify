@@ -4,37 +4,37 @@ uploads = []
 id = "y57rSPdOptRKw0lIJpTlw"
 uri = "file://artifacts/music-bot/emojis/music.png"
 type = "image"
-title = "music emoji"
+title = "music headphones icon"
 
 [[generated]]
 id = "PB9JifBcK9oXOtwI1ptnq"
 uri = "file://artifacts/music-bot/emojis/filters.png"
 type = "image"
-title = "filters emoji"
+title = "filters equalizer icon"
 
 [[generated]]
 id = "G2fiCuCNQjDJko_xUuEDN"
 uri = "file://artifacts/music-bot/emojis/favourite.png"
 type = "image"
-title = "favourite emoji"
+title = "favourite heart icon"
 
 [[generated]]
 id = "DZW281yJbXKAfZfgp5fGq"
 uri = "file://artifacts/music-bot/emojis/lyrics.png"
 type = "image"
-title = "lyrics emoji"
+title = "lyrics microphone icon"
 
 [[generated]]
 id = "KaAKnbb4yHLudKozhzNok"
 uri = "file://artifacts/music-bot/emojis/sources.png"
 type = "image"
-title = "sources emoji"
+title = "sources play button icon"
 
 [[generated]]
 id = "upQKIUMkCSlRhK_JnfXcr"
 uri = "file://artifacts/music-bot/emojis/allcommands.png"
 type = "image"
-title = "all commands emoji"
+title = "all commands compass icon"
 
 [[outputs]]
 id = "Fj0Ucwc_tHHybaMddUFWe"
