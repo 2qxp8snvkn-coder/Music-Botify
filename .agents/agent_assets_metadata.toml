@@ -1,0 +1,73 @@
+uploads = []
+
+[[generated]]
+id = "y57rSPdOptRKw0lIJpTlw"
+uri = "file://artifacts/music-bot/emojis/music.png"
+type = "image"
+title = "music category emoji"
+
+[[generated]]
+id = "PB9JifBcK9oXOtwI1ptnq"
+uri = "file://artifacts/music-bot/emojis/filters.png"
+type = "image"
+title = "filters category emoji"
+
+[[generated]]
+id = "G2fiCuCNQjDJko_xUuEDN"
+uri = "file://artifacts/music-bot/emojis/favourite.png"
+type = "image"
+title = "favourite category emoji"
+
+[[generated]]
+id = "DZW281yJbXKAfZfgp5fGq"
+uri = "file://artifacts/music-bot/emojis/lyrics.png"
+type = "image"
+title = "lyrics tts category emoji"
+
+[[generated]]
+id = "KaAKnbb4yHLudKozhzNok"
+uri = "file://artifacts/music-bot/emojis/sources.png"
+type = "image"
+title = "sources category emoji"
+
+[[generated]]
+id = "upQKIUMkCSlRhK_JnfXcr"
+uri = "file://artifacts/music-bot/emojis/allcommands.png"
+type = "image"
+title = "all commands category emoji"
+
+[[outputs]]
+id = "Fj0Ucwc_tHHybaMddUFWe"
+uri = "file://artifacts/music-bot/emojis/music.png"
+type = "image"
+title = "🎵 Music"
+
+[[outputs]]
+id = "UnwC5EWYqd--_Eem4eQ92"
+uri = "file://artifacts/music-bot/emojis/filters.png"
+type = "image"
+title = "🎛️ Filters"
+
+[[outputs]]
+id = "S_PKLiz_ku0bdJ3H82Fob"
+uri = "file://artifacts/music-bot/emojis/favourite.png"
+type = "image"
+title = "❤️ Favourite"
+
+[[outputs]]
+id = "6QlVwVKa8C98tRBtejpWN"
+uri = "file://artifacts/music-bot/emojis/lyrics.png"
+type = "image"
+title = "🎤 Lyrics & TTS"
+
+[[outputs]]
+id = "NRHXElP873UdUMDYxf8OE"
+uri = "file://artifacts/music-bot/emojis/sources.png"
+type = "image"
+title = "🎧 Sources"
+
+[[outputs]]
+id = "rh8J-HAdNy_3rPm4sL9sC"
+uri = "file://artifacts/music-bot/emojis/allcommands.png"
+type = "image"
+title = "🧭 All Commands"
