@@ -19,30 +19,21 @@ url_rx = re.compile(r"https?://(?:www\.)?.+")
 SOURCE_PREFIXES = {
     "sp ": "spsearch",
     "yt ": "ytsearch",
-    "sc ": "scsearch",
-    "js ": "jssearch",
     "am ": "amsearch",
-    "dz ": "dzsearch",
 }
 
 SOURCE_NAMES = {
     "spsearch": "Spotify",
-    "ytsearch": "YouTube",
-    "scsearch": "SoundCloud",
-    "jssearch": "JioSaavn",
+    "ytsearch": "YouTube Music",
     "amsearch": "Apple Music",
-    "dzsearch": "Deezer",
 }
 
 SOURCE_EMOJI = {
-    "Spotify":     "🟢",
-    "YouTube":     "🔴",
-    "SoundCloud":  "🟠",
-    "JioSaavn":    "🔵",
-    "Apple Music": "🍎",
-    "Deezer":      "🟣",
-    "Best Match":  "🔍",
-    "URL":         "🔗",
+    "Spotify":      "🟢",
+    "YouTube Music":"🔴",
+    "Apple Music":  "🍎",
+    "Best Match":   "🔍",
+    "URL":          "🔗",
 }
 
 def _source_badge(label: str) -> str:
@@ -51,14 +42,11 @@ def _source_badge(label: str) -> str:
 
 URL_PATTERNS = [
     (re.compile(r"https?://(open\.spotify\.com|spotify\.com)/"), "Spotify"),
-    (re.compile(r"https?://(www\.youtube\.com|youtu\.be|music\.youtube\.com)/"), "YouTube"),
+    (re.compile(r"https?://(www\.youtube\.com|youtu\.be|music\.youtube\.com)/"), "YouTube Music"),
     (re.compile(r"https?://music\.apple\.com/"), "Apple Music"),
-    (re.compile(r"https?://(www\.)?jiosaavn\.com/"), "JioSaavn"),
-    (re.compile(r"https?://(www\.)?soundcloud\.com/"), "SoundCloud"),
-    (re.compile(r"https?://(www\.)?deezer\.com/"), "Deezer"),
 ]
 
-MULTI_SEARCH_SOURCES = ["ytsearch", "spsearch", "scsearch", "jssearch"]
+MULTI_SEARCH_SOURCES = ["ytsearch", "spsearch", "amsearch"]
 
 
 def _score_result(query, track, source_key):

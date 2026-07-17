@@ -1189,8 +1189,8 @@ HELP_CATEGORIES = [
         "emoji": "🎧",
         "description": "Platform-specific search prefixes.",
         "fields": [
-            ("🎯 Search Prefixes", "`sp ` Spotify · `yt ` YouTube\n`sc ` SoundCloud · `am ` Apple Music\n`js ` JioSaavn · `dz ` Deezer"),
-            ("💡 Examples", "`!play sp blinding lights`\n`!play yt lo-fi chill beats`\n`!play sc phonk mix`"),
+            ("🎯 Search Prefixes", "🟢 `sp ` Spotify\n🔴 `yt ` YouTube Music\n🍎 `am ` Apple Music"),
+            ("💡 Examples", "`!play sp blinding lights`\n`!play yt lo-fi chill beats`\n`!play am after hours`"),
         ]
     },
     {

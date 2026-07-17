@@ -33,8 +33,7 @@ HELP_SECTIONS = [
         "[filters]                      - List available filters",
     ]),
     ("SOURCES (use with play)", [
-        "[yt] YouTube   [sp] Spotify   [sc] SoundCloud",
-        "[js] JioSaavn  [am] Apple     [dz] Deezer",
+        "[yt] YouTube Music   [sp] Spotify   [am] Apple Music",
         "Example: play sp shape of you",
         "No prefix = auto-searches all sources",
     ]),
