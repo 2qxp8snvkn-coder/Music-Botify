@@ -40,34 +40,34 @@ title = "all commands compass icon"
 id = "Fj0Ucwc_tHHybaMddUFWe"
 uri = "file://artifacts/music-bot/emojis/music.png"
 type = "image"
-title = "Music"
+title = "Music — Headphones"
 
 [[outputs]]
 id = "UnwC5EWYqd--_Eem4eQ92"
 uri = "file://artifacts/music-bot/emojis/filters.png"
 type = "image"
-title = "Filters"
+title = "Filters — Control Knobs"
 
 [[outputs]]
 id = "S_PKLiz_ku0bdJ3H82Fob"
 uri = "file://artifacts/music-bot/emojis/favourite.png"
 type = "image"
-title = "Favourite"
+title = "Favourite — Heart"
 
 [[outputs]]
 id = "6QlVwVKa8C98tRBtejpWN"
 uri = "file://artifacts/music-bot/emojis/lyrics.png"
 type = "image"
-title = "Lyrics & TTS"
+title = "Lyrics & TTS — Microphone"
 
 [[outputs]]
 id = "NRHXElP873UdUMDYxf8OE"
 uri = "file://artifacts/music-bot/emojis/sources.png"
 type = "image"
-title = "Sources"
+title = "Sources — Musical Notes"
 
 [[outputs]]
 id = "rh8J-HAdNy_3rPm4sL9sC"
 uri = "file://artifacts/music-bot/emojis/allcommands.png"
 type = "image"
-title = "All Commands"
+title = "All Commands — Gear"
