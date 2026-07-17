@@ -1213,6 +1213,8 @@ HELP_CATEGORIES = [
 
 _TOTAL_COMMANDS = 22
 
+HELP_COLOR = 0x2b2d31  # matches Discord dark mode — hides the left bar
+
 def _build_help_home(ctx) -> discord.Embed:
     embed = discord.Embed(
         title="CYBORG Music",
@@ -1220,7 +1222,7 @@ def _build_help_home(ctx) -> discord.Embed:
             "A high-quality music bot with queue management,\n"
             "audio filters, lyrics, TTS, and liked songs."
         ),
-        color=ACCENT
+        color=HELP_COLOR
     )
     embed.add_field(
         name="\u200b",
@@ -1244,7 +1246,7 @@ def _build_help_category(cat: dict, ctx) -> discord.Embed:
     embed = discord.Embed(
         title=f"{cat['emoji']}  {cat['label']}",
         description=cat["description"],
-        color=ACCENT
+        color=HELP_COLOR
     )
     for name, value in cat["fields"]:
         embed.add_field(name=name, value=value, inline=False)
