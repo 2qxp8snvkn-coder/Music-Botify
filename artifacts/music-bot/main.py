@@ -320,6 +320,59 @@ class MusicView(discord.ui.View):
                 f"💔 **{track.title}** is already in your liked songs.", ephemeral=True
             )
 
+    @discord.ui.select(
+        placeholder="🎛  Music Controls…",
+        min_values=1, max_values=1,
+        options=[
+            discord.SelectOption(label="Replay",        value="replay",    emoji="⏮", description="Restart the current track from the beginning"),
+            discord.SelectOption(label="Stop",          value="stop",      emoji="⏹", description="Stop music and disconnect from VC"),
+            discord.SelectOption(label="Shuffle",       value="shuffle",   emoji="🔀", description="Shuffle the queue"),
+            discord.SelectOption(label="Loop — Track",  value="loop_t",    emoji="🔂", description="Loop the current track"),
+            discord.SelectOption(label="Loop — Queue",  value="loop_q",    emoji="🔁", description="Loop the entire queue"),
+            discord.SelectOption(label="Loop — Off",    value="loop_off",  emoji="➡️", description="Disable loop"),
+            discord.SelectOption(label="Volume  –20",   value="vol_down",  emoji="🔉", description="Decrease volume by 20"),
+            discord.SelectOption(label="Volume  +20",   value="vol_up",    emoji="🔊", description="Increase volume by 20"),
+        ]
+    )
+    async def controls_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        choice = select.values[0]
+        pm     = self._pm()
+        player = self._player()
+
+        if not pm or not player:
+            return await interaction.response.send_message("❌ Nothing is playing.", ephemeral=True)
+
+        if choice == "replay":
+            await pm.replay(self.guild_id)
+            msg = "⏮ Replaying current track!"
+        elif choice == "stop":
+            await pm.stop(self.guild_id)
+            msg = "⏹ Stopped."
+        elif choice == "shuffle":
+            await pm.shuffle(self.guild_id)
+            msg = "🔀 Queue shuffled!"
+        elif choice == "loop_t":
+            await pm.loop(self.guild_id, "track")
+            msg = "🔂 Looping current track!"
+        elif choice == "loop_q":
+            await pm.loop(self.guild_id, "queue")
+            msg = "🔁 Looping queue!"
+        elif choice == "loop_off":
+            await pm.loop(self.guild_id, "off")
+            msg = "➡️ Loop disabled."
+        elif choice == "vol_down":
+            new_vol = max(10, player.volume - 20)
+            await pm.set_volume(self.guild_id, new_vol)
+            msg = f"🔉 Volume: **{new_vol}**"
+        elif choice == "vol_up":
+            new_vol = min(500, player.volume + 20)
+            await pm.set_volume(self.guild_id, new_vol)
+            msg = f"🔊 Volume: **{new_vol}**"
+        else:
+            msg = "✅ Done."
+
+        await interaction.response.send_message(msg, ephemeral=True)
+
 
 class SearchView(discord.ui.View):
     def __init__(self, results, guild_id: int, voice_channel_id: int):
@@ -1089,44 +1142,157 @@ async def playliked_cmd(ctx, member: discord.Member = None):
 
 # ─── Help Command ─────────────────────────────────────────────────────────────
 
-@bot.command(name="help", aliases=["h", "commands"])
-async def help_cmd(ctx):
+HELP_CATEGORIES = [
+    {
+        "id": "music",
+        "label": "Music",
+        "emoji": "🎵",
+        "description": "Playback, queue control, and everything audio.",
+        "fields": [
+            ("🎵 Playback", "`!play <song/url>` — search & play\n`!search <song>` — pick from 5 results\n`!pause` / `!resume` — pause or resume\n`!skip` — skip track · `!replay` — restart\n`!seek <time>` — jump to position\n`!join` — join VC · `!dc` — disconnect"),
+            ("📋 Queue",    "`!queue [page]` — view queue\n`!remove <#>` — remove a track\n`!move <from> <to>` — reorder\n`!clear` — clear queue\n`!shuffle` — shuffle\n`!loop [track/queue/off]` — loop modes"),
+            ("🔊 Volume & 24/7", "`!volume [1–1000]` — set volume\n`!247` — toggle 24/7 mode\n`!np` — now playing panel"),
+        ]
+    },
+    {
+        "id": "filters",
+        "label": "Filters",
+        "emoji": "🎛️",
+        "description": "Audio effects, equalizer, and sound presets.",
+        "fields": [
+            ("🎛️ Filters", "`!filter <name>` — apply an effect\n`!filter clear` — remove all effects\n`!filters` — list all available filters"),
+            ("🎨 Available Presets", "**nightcore** · **lofi** · **bassboost**\n**8d** · **slowmo** · **earrape**\n**vaporwave** · **soft** · and more…"),
+        ]
+    },
+    {
+        "id": "favourites",
+        "label": "Favourite",
+        "emoji": "❤️",
+        "description": "Save your favourite tracks and replay them anytime.",
+        "fields": [
+            ("❤️ Liked Songs", "`!like` / `!fav` — like current song\n`!liked` — view your liked songs\n`!unlike <#>` — remove from likes\n`!playliked` — queue all liked songs\n\nYou can also press ❤️ on the Now Playing panel!"),
+        ]
+    },
+    {
+        "id": "lyrics",
+        "label": "Lyrics & TTS",
+        "emoji": "📄",
+        "description": "Lyrics lookup and text-to-speech features.",
+        "fields": [
+            ("📄 Lyrics", "`!lyrics` — lyrics for current song\n`!lyrics <song>` — search by title\n`!lyrics artist - title` — precise search\nPaginated with ◀ ▶ buttons"),
+            ("🗣️ Text-to-Speech", "`!tts <text>` — speak text in VC\n`!ttsvoice <voice>` — change TTS voice"),
+        ]
+    },
+    {
+        "id": "sources",
+        "label": "Sources",
+        "emoji": "🎧",
+        "description": "Platform-specific search prefixes.",
+        "fields": [
+            ("🎯 Search Prefixes", "`sp ` Spotify · `yt ` YouTube\n`sc ` SoundCloud · `am ` Apple Music\n`js ` JioSaavn · `dz ` Deezer"),
+            ("💡 Examples", "`!play sp blinding lights`\n`!play yt lo-fi chill beats`\n`!play sc phonk mix`"),
+        ]
+    },
+    {
+        "id": "all",
+        "label": "All Commands",
+        "emoji": "🧭",
+        "description": "Browse every available command at a glance.",
+        "fields": [
+            ("All Commands", (
+                "**Playback:** `play` `search` `pause` `resume` `skip` `stop` `replay` `seek` `np` `join` `dc`\n"
+                "**Queue:** `queue` `remove` `move` `clear` `shuffle` `loop`\n"
+                "**Audio:** `filter` `filters` `volume` `247`\n"
+                "**Liked:** `like` `unlike` `liked` `playliked`\n"
+                "**Lyrics:** `lyrics` `tts` `ttsvoice`\n"
+                "**Help:** `help`"
+            )),
+        ]
+    },
+]
+
+_TOTAL_COMMANDS = 22
+
+def _build_help_home(ctx) -> discord.Embed:
     embed = discord.Embed(
-        title="🎵 CYBORG Music Bot — Commands",
-        description=f"Prefix: `{PREFIX}` · Join a VC before using music commands",
+        title="CYBORG Music",
+        description=(
+            "A high-quality music bot with queue management,\n"
+            "audio filters, lyrics, TTS, and liked songs."
+        ),
         color=ACCENT
     )
-    embed.add_field(name="🎵 Playback", value=(
-        "`!play <song/url>` · `!search <song>`\n"
-        "`!skip` · `!stop` · `!pause` · `!seek <s>`\n"
-        "`!join` · `!dc` · `!np`"
-    ), inline=False)
-    embed.add_field(name="📋 Queue", value=(
-        "`!queue [page]` · `!clear`\n"
-        "`!remove <pos>` · `!move <from> <to>`\n"
-        "`!shuffle` · `!loop <track/queue/off>` · `!replay`"
-    ), inline=False)
-    embed.add_field(name="🎛 Filters", value=(
-        "`!filter <name>` · `!filter clear` · `!filters`\n"
-        "nightcore, lofi, bassboost, 8d, slowmo, earrape + more"
-    ), inline=False)
-    embed.add_field(name="🔊 Volume", value="`!volume [1-1000]`", inline=True)
-    embed.add_field(name="🌙 24/7 Mode", value="`!247`", inline=True)
-    embed.add_field(name="❤️ Liked Songs", value=(
-        "`!like` / `!fav` — like current song\n"
-        "`!liked` — your liked songs list\n"
-        "`!unlike <#>` — remove from likes\n"
-        "`!playliked` — queue all your liked songs"
-    ), inline=False)
-    embed.add_field(name="📄 Lyrics", value="`!lyrics` — current song · `!lyrics <song>` · `!lyrics artist - title`", inline=False)
-    embed.add_field(name="🗣 TTS", value="`!tts <text>` · `!ttsvoice <voice>`", inline=False)
-    embed.add_field(name="🎯 Sources", value=(
-        "`sp ` Spotify · `yt ` YouTube · `sc ` SoundCloud\n"
-        "`js ` JioSaavn · `am ` Apple · `dz ` Deezer\n"
-        "Example: `!play sp blinding lights`"
-    ), inline=False)
-    embed.set_footer(text="Use !np to get an interactive control panel with buttons!")
-    await ctx.send(embed=embed)
+    embed.add_field(
+        name="\u200b",
+        value=(
+            f"**{_TOTAL_COMMANDS}** commands  ·  "
+            f"**{len(HELP_CATEGORIES)}** categories  ·  "
+            f"Prefix: `{PREFIX}`"
+        ),
+        inline=False
+    )
+    cat_lines = "\n".join(
+        f"{c['emoji']}  **{c['label']}**" for c in HELP_CATEGORIES
+    )
+    embed.add_field(name="Categories", value=cat_lines, inline=False)
+    if ctx.me.avatar:
+        embed.set_thumbnail(url=ctx.me.avatar.url)
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+    return embed
+
+def _build_help_category(cat: dict, ctx) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"{cat['emoji']}  {cat['label']}",
+        description=cat["description"],
+        color=ACCENT
+    )
+    for name, value in cat["fields"]:
+        embed.add_field(name=name, value=value, inline=False)
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}  ·  Use the menu to switch categories", icon_url=ctx.author.display_avatar.url)
+    return embed
+
+class HelpView(discord.ui.View):
+    def __init__(self, ctx):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self._add_select()
+
+    def _add_select(self):
+        options = [
+            discord.SelectOption(
+                label=c["label"],
+                value=c["id"],
+                emoji=c["emoji"],
+                description=c["description"][:100],
+            )
+            for c in HELP_CATEGORIES
+        ]
+        select = discord.ui.Select(
+            placeholder="✦  Select a category to explore…",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        chosen_id = interaction.data["values"][0]
+        if chosen_id == "__home__":
+            embed = _build_help_home(self.ctx)
+        else:
+            cat = next((c for c in HELP_CATEGORIES if c["id"] == chosen_id), None)
+            embed = _build_help_category(cat, self.ctx) if cat else _build_help_home(self.ctx)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def on_timeout(self):
+        self.clear_items()
+
+@bot.command(name="help", aliases=["h", "commands"])
+async def help_cmd(ctx):
+    embed = _build_help_home(ctx)
+    view  = HelpView(ctx)
+    await ctx.send(embed=embed, view=view)
 
 # ─── Error Handler ────────────────────────────────────────────────────────────
 
