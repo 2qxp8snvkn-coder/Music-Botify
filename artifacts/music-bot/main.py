@@ -1297,7 +1297,7 @@ HELP_CATEGORIES = [
     {
         "id": "music",
         "label": "Music",
-        "emoji": "<:music:1527769480221032449>",
+        "emoji": "🎵",
         "description": "Playback, queue control, and everything audio.",
         "fields": [
             ("🎵 Playback", "`!play <song/url>` — search & play\n`!search <song>` — pick from 5 results\n`!pause` / `!resume` — pause or resume\n`!skip` — skip track · `!replay` — restart\n`!seek <time>` — jump to position\n`!join` — join VC · `!dc` — disconnect"),
@@ -1308,7 +1308,7 @@ HELP_CATEGORIES = [
     {
         "id": "filters",
         "label": "Filters",
-        "emoji": "<:filter:1527770554927550554>",
+        "emoji": "🎛️",
         "description": "Audio effects, equalizer, and sound presets.",
         "fields": [
             ("🎛️ Filters", "`!filter <name>` — apply an effect\n`!filter clear` — remove all effects\n`!filters` — list all available filters"),
@@ -1347,7 +1347,7 @@ HELP_CATEGORIES = [
     {
         "id": "all",
         "label": "All Commands",
-        "emoji": "<:config:1527769855586074726>",
+        "emoji": "🧭",
         "description": "Browse every available command at a glance.",
         "fields": [
             ("All Commands", (
