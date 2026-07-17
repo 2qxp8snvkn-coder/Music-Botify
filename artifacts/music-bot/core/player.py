@@ -29,9 +29,9 @@ SOURCE_NAMES = {
 }
 
 SOURCE_EMOJI = {
-    "Spotify":      "🟢",
-    "YouTube Music":"🔴",
-    "Apple Music":  "🍎",
+    "Spotify":      "<:spotify:1527767944078295070>",
+    "YouTube Music":"<:ytmusic:1527767881935491212>",
+    "Apple Music":  "<:applemusic:1527767904819482805>",
     "Best Match":   "🔍",
     "URL":          "🔗",
 }
