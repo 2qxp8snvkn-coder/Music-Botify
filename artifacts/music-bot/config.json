@@ -1,11 +1,11 @@
 {
-  "nodes": [
-    {
-      "name": "main",
-      "host": "lava-v4.ajieblogs.eu.org",
-      "port": 443,
-      "auth": "https://dsc.gg/ajidevserver",
-      "secure": true
-    }
-  ]
+    "nodes": [
+        {
+            "name": "main",
+            "host": "lava-v4.millohost.my.id",
+            "port": 443,
+            "auth": "https://discord.gg/mjS5J2K3ep",
+            "secure": true
+        }
+    ]
 }
