@@ -1,0 +1,9 @@
+[
+  {
+    "name": "Node 1",
+    "host": "lava-v4.millohost.my.id",
+    "port": 443,
+    "auth": "https://discord.gg/mjS5J2K3ep",
+    "secure": true
+  }
+]

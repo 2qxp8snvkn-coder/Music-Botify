@@ -1140,6 +1140,157 @@ async def playliked_cmd(ctx, member: discord.Member = None):
     )
     await msg.edit(embed=embed)
 
+# ─── Lavalink Node Manager ────────────────────────────────────────────────────
+
+NODES_PATH = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data", "nodes.json")
+
+def _load_nodes() -> list:
+    try:
+        with open(NODES_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_nodes(nodes: list):
+    with open(NODES_PATH, "w") as f:
+        json.dump(nodes, f, indent=2)
+
+async def _switch_node(host: str, port: int, password: str, secure: bool, name: str = "main"):
+    """Remove all current nodes and connect to the given one."""
+    lv = bot.lavalink
+    # Remove existing nodes
+    for node in list(lv.node_manager.nodes):
+        lv.node_manager.remove_node(node)
+    await asyncio.sleep(0.5)
+    lv.add_node(host=host, port=port, password=password, region="us", name=name, ssl=secure)
+    # Update config.json so it persists across restarts
+    CONFIG["nodes"] = [{"name": name, "host": host, "port": port, "auth": password, "secure": secure}]
+    base = os.path.dirname(os.path.abspath(sys.argv[0]))
+    with open(os.path.join(base, "config.json"), "w") as f:
+        json.dump(CONFIG, f, indent=4)
+
+def _node_status() -> str:
+    if not hasattr(bot, "lavalink"):
+        return "❌ Not initialised"
+    nodes = bot.lavalink.node_manager.nodes
+    if not nodes:
+        return "❌ No nodes connected"
+    parts = []
+    for n in nodes:
+        ok = getattr(n, "available", False)
+        ping = getattr(n, "stats", None)
+        ping_ms = f"{ping.ping}ms" if ping and hasattr(ping, "ping") else "—"
+        parts.append(f"{'🟢' if ok else '🔴'} **{n.name}** — `{n.host}:{n.port}` ({'SSL' if n.ssl else 'no SSL'}) · {ping_ms}")
+    return "\n".join(parts)
+
+@bot.command(name="node", aliases=["lavalink", "nodes"])
+@commands.has_permissions(administrator=True)
+async def node_cmd(ctx, action: str = None, *args):
+    saved = _load_nodes()
+
+    # ── !node (status) ───────────────────────────────────────────────────────
+    if not action or action == "status":
+        embed = discord.Embed(title="<:config:1527769855586074726>  Lavalink Nodes", color=ACCENT)
+        embed.add_field(name="Active Node", value=_node_status(), inline=False)
+        if saved:
+            lines = []
+            for i, n in enumerate(saved, 1):
+                lines.append(f"`{i}.` **{n['name']}** — `{n['host']}:{n['port']}` ({'SSL' if n.get('secure') else 'no SSL'})")
+            embed.add_field(name="Saved Nodes", value="\n".join(lines), inline=False)
+        else:
+            embed.add_field(name="Saved Nodes", value="*None saved yet.*", inline=False)
+        embed.set_footer(text="!node add <host> <port> [password] [ssl]  ·  !node use <#>  ·  !node remove <#>")
+        return await ctx.send(embed=embed)
+
+    # ── !node add <host> <port> [password] [ssl] ─────────────────────────────
+    if action == "add":
+        if len(args) < 2:
+            return await ctx.send(embed=discord.Embed(
+                description="❌ Usage: `!node add <host> <port> [password] [ssl]`\nExample: `!node add lava.example.com 443 mypassword true`",
+                color=ERROR
+            ))
+        host = args[0]
+        try:
+            port = int(args[1])
+        except ValueError:
+            return await ctx.send(embed=discord.Embed(description="❌ Port must be a number.", color=ERROR))
+        password = args[2] if len(args) > 2 else "youshallnotpass"
+        secure   = str(args[3]).lower() in ("true", "yes", "1", "ssl") if len(args) > 3 else (port == 443)
+        name     = f"Node {len(saved) + 1}"
+        saved.append({"name": name, "host": host, "port": port, "auth": password, "secure": secure})
+        _save_nodes(saved)
+        return await ctx.send(embed=discord.Embed(
+            description=f"✅ Saved **{name}** — `{host}:{port}` ({'SSL' if secure else 'no SSL'})\nUse `!node use {len(saved)}` to switch to it.",
+            color=SUCCESS
+        ))
+
+    # ── !node remove <number> ────────────────────────────────────────────────
+    if action in ("remove", "delete", "del"):
+        if not args:
+            return await ctx.send(embed=discord.Embed(description="❌ Usage: `!node remove <number>`", color=ERROR))
+        try:
+            idx = int(args[0]) - 1
+            removed = saved.pop(idx)
+            _save_nodes(saved)
+            return await ctx.send(embed=discord.Embed(
+                description=f"🗑 Removed **{removed['name']}** (`{removed['host']}:{removed['port']}`).",
+                color=SUCCESS
+            ))
+        except (ValueError, IndexError):
+            return await ctx.send(embed=discord.Embed(description="❌ Invalid number. Use `!node` to see the list.", color=ERROR))
+
+    # ── !node use <number> ───────────────────────────────────────────────────
+    if action in ("use", "switch", "set"):
+        if not args:
+            return await ctx.send(embed=discord.Embed(description="❌ Usage: `!node use <number>`", color=ERROR))
+        try:
+            idx = int(args[0]) - 1
+            n   = saved[idx]
+        except (ValueError, IndexError):
+            return await ctx.send(embed=discord.Embed(description="❌ Invalid number. Use `!node` to see the list.", color=ERROR))
+
+        msg = await ctx.send(embed=discord.Embed(
+            description=f"🔄 Switching to **{n['name']}** (`{n['host']}:{n['port']}`)…",
+            color=ACCENT
+        ))
+        try:
+            await _switch_node(n["host"], n["port"], n["auth"], n.get("secure", False), n["name"])
+            await asyncio.sleep(2)
+            status = _node_status()
+            await msg.edit(embed=discord.Embed(
+                title="✅ Node switched",
+                description=f"{status}\n\nThis is now the active node and will persist after restart.",
+                color=SUCCESS
+            ))
+        except Exception as e:
+            await msg.edit(embed=discord.Embed(
+                description=f"❌ Failed to switch node: `{e}`",
+                color=ERROR
+            ))
+        return
+
+    await ctx.send(embed=discord.Embed(
+        description="❌ Unknown action. Use `!node`, `!node add`, `!node use <#>`, `!node remove <#>`.",
+        color=ERROR
+    ))
+
+# Auto-failover when active node disconnects
+@bot.event
+async def on_lavalink_node_disconnected(node, code, reason):
+    logger.warning(f"Node '{node.name}' disconnected (code={code}): {reason}")
+    saved = _load_nodes()
+    if not saved:
+        return
+    # Pick the first saved node that isn't the one that just died
+    for n in saved:
+        if n["host"] != node.host or n["port"] != node.port:
+            logger.info(f"Auto-failover → {n['name']} ({n['host']}:{n['port']})")
+            try:
+                await _switch_node(n["host"], n["port"], n["auth"], n.get("secure", False), n["name"])
+            except Exception as e:
+                logger.error(f"Failover failed: {e}")
+            return
+
 # ─── Help Command ─────────────────────────────────────────────────────────────
 
 HELP_CATEGORIES = [
@@ -1196,7 +1347,7 @@ HELP_CATEGORIES = [
     {
         "id": "all",
         "label": "All Commands",
-        "emoji": "<:information:1527770596325327028>",
+        "emoji": "<:config:1527769855586074726>",
         "description": "Browse every available command at a glance.",
         "fields": [
             ("All Commands", (
