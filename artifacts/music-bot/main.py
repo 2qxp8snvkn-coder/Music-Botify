@@ -1132,14 +1132,46 @@ async def help_cmd(ctx):
 
 @bot.event
 async def on_command_error(ctx, error):
+    # Unwrap CommandInvokeError to get the real cause
+    original = getattr(error, "original", error)
+
     if isinstance(error, commands.CommandNotFound):
         return
+
+    # ── Lavalink / audio errors ──────────────────────────────────────────────
+    err_str = str(original).lower()
+    if "no available nodes" in err_str or "clienterror" in type(original).__name__.lower():
+        return await ctx.send(embed=discord.Embed(
+            title="⚠️ Audio service unavailable",
+            description="The music backend is temporarily offline or reconnecting.\nPlease try again in a few seconds.",
+            color=WARNING
+        ))
+
+    if "not connected" in err_str or "not in a voice channel" in err_str:
+        return await ctx.send(embed=discord.Embed(
+            description="❌ I'm not connected to a voice channel. Use `!play` to start.",
+            color=ERROR
+        ))
+
+    if isinstance(original, (ConnectionError, ConnectionResetError, OSError)) or "connection" in err_str:
+        return await ctx.send(embed=discord.Embed(
+            title="⚠️ Connection error",
+            description="Lost connection briefly. Please try the command again.",
+            color=WARNING
+        ))
+
+    # ── Discord.py argument errors ───────────────────────────────────────────
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(embed=discord.Embed(description=f"❌ Missing argument. Type `!help` for usage.", color=ERROR))
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send(embed=discord.Embed(description=f"❌ Invalid argument. Type `!help` for usage.", color=ERROR))
-    elif isinstance(error, (commands.UnexpectedQuoteError, commands.InvalidEndOfQuotedStringError, commands.ExpectedClosingQuoteError)):
-        # Re-invoke the command treating the raw content as a plain string (ignores quote parsing)
+        return await ctx.send(embed=discord.Embed(
+            description=f"❌ Missing argument. Type `!help` for usage.", color=ERROR
+        ))
+
+    if isinstance(error, commands.BadArgument):
+        return await ctx.send(embed=discord.Embed(
+            description=f"❌ Invalid argument. Type `!help` for usage.", color=ERROR
+        ))
+
+    if isinstance(error, (commands.UnexpectedQuoteError, commands.InvalidEndOfQuotedStringError, commands.ExpectedClosingQuoteError)):
         raw = ctx.message.content
         prefix_len = len(ctx.prefix or PREFIX)
         cmd_name = ctx.invoked_with or ""
@@ -1150,13 +1182,28 @@ async def on_command_error(ctx, error):
                 return
             except Exception:
                 pass
-        await ctx.send(embed=discord.Embed(
-            description=f"❌ Your message has special characters (like `'` or `\"`) that caused an error. Try rephrasing without them.",
+        return await ctx.send(embed=discord.Embed(
+            description="❌ Your message has special characters (like `'` or `\"`) that caused an error. Try rephrasing without them.",
             color=ERROR
         ))
-    else:
-        logger.error(f"Command error in {ctx.command}: {error}")
-        await ctx.send(embed=discord.Embed(description=f"❌ An error occurred: `{error}`", color=ERROR))
+
+    if isinstance(error, commands.CommandOnCooldown):
+        return await ctx.send(embed=discord.Embed(
+            description=f"⏳ Slow down! Try again in `{error.retry_after:.1f}s`.", color=WARNING
+        ))
+
+    if isinstance(error, commands.MissingPermissions):
+        return await ctx.send(embed=discord.Embed(
+            description="❌ You don't have permission to use that command.", color=ERROR
+        ))
+
+    # ── Catch-all: log it but show a clean message ───────────────────────────
+    logger.error(f"Unhandled command error in !{ctx.command}: {type(original).__name__}: {original}")
+    await ctx.send(embed=discord.Embed(
+        title="❌ Something went wrong",
+        description=f"An unexpected error occurred. Try again or use `!help`.\n```{type(original).__name__}: {str(original)[:120]}```",
+        color=ERROR
+    ))
 
 # ─── Keep-Alive & Main ────────────────────────────────────────────────────────
 
