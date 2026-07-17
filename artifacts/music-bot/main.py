@@ -1180,7 +1180,10 @@ def _node_status() -> str:
         ok = getattr(n, "available", False)
         ping = getattr(n, "stats", None)
         ping_ms = f"{ping.ping}ms" if ping and hasattr(ping, "ping") else "—"
-        parts.append(f"{'🟢' if ok else '🔴'} **{n.name}** — `{n.host}:{n.port}` ({'SSL' if n.ssl else 'no SSL'}) · {ping_ms}")
+        h = n._transport._host
+        p = n._transport._port
+        s = n._transport._ssl
+        parts.append(f"{'🟢' if ok else '🔴'} **{n.name}** — `{h}:{p}` ({'SSL' if s else 'no SSL'}) · {ping_ms}")
     return "\n".join(parts)
 
 @bot.command(name="node", aliases=["lavalink", "nodes"])
@@ -1283,7 +1286,7 @@ async def on_lavalink_node_disconnected(node, code, reason):
         return
     # Pick the first saved node that isn't the one that just died
     for n in saved:
-        if n["host"] != node.host or n["port"] != node.port:
+        if n["host"] != node._transport._host or n["port"] != node._transport._port:
             logger.info(f"Auto-failover → {n['name']} ({n['host']}:{n['port']})")
             try:
                 await _switch_node(n["host"], n["port"], n["auth"], n.get("secure", False), n["name"])
